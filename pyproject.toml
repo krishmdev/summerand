@@ -1,0 +1,9 @@
+[project]
+name            = "summerand"
+version         = "0.0.1"
+requires-python = ">=3.11"
+authors         = [{name="Krish Maheshwari"}]
+
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"

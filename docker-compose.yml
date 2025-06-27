@@ -1,0 +1,8 @@
+version: "3.9"
+services:
+  app:
+    build: .
+    container_name: summerand_markets
+    volumes:
+      - .:/app      # hot-reload convenience
+    command: python -m summerand

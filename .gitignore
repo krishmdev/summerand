@@ -249,3 +249,12 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/python,macos,linux,windows,docker
+
+### summerand ###
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+node_modules/
+test-results/
+playwright-report/
+.models/

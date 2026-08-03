@@ -1,9 +1,78 @@
 [project]
 name            = "summerand"
-version         = "0.0.1"
+version         = "0.2.0"
+description     = "Market news clustering, impact ranking and briefs, streamed to a Chrome side panel"
+readme          = "README.md"
 requires-python = ">=3.11"
+license         = "MIT"
 authors         = [{name="Krish Maheshwari"}]
+dependencies = [
+    "fastapi>=0.141",
+    "uvicorn[standard]>=0.53",
+    "pydantic>=2.13",
+    "pydantic-settings>=2.15",
+    "typer>=0.27",
+    "httpx>=0.28",
+    "feedparser>=6.0.14",
+    "beautifulsoup4>=4.15",
+    "lxml>=6.1",
+    "websockets>=15",
+    "aiokafka>=0.14",
+    "numpy>=2.2",
+    "scipy>=1.15",
+    "scikit-learn>=1.7",
+    "sqlalchemy>=2.0.54",
+    "pyyaml>=6.0.3",
+    "openai>=3.19",
+]
+
+[project.optional-dependencies]
+local = ["sentence-transformers>=6.1"]
+pg    = ["psycopg[binary]>=3.3"]
+
+[project.scripts]
+summerand = "summerand.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1",
+    "pytest-asyncio>=1.4",
+    "pytest-cov>=7.1",
+    "pytest-socket>=0.8",
+    "ruff>=0.16",
+]
 
 [build-system]
 requires      = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["summerand*"]
+
+[tool.setuptools.package-data]
+summerand = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
+"scripts/*" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --disable-socket --allow-unix-socket --allow-hosts=127.0.0.1,localhost"
+markers = [
+    "kafka: needs a running Redpanda on localhost:19092 (skipped unless SUMMERAND_KAFKA_TESTS=1)",
+    "slow: replays with real sleeps",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:websockets.*",
+]

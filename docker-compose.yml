@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   app:
     build: .
@@ -6,3 +5,40 @@ services:
     volumes:
       - .:/app      # hot-reload convenience
     command: python -m summerand
+  redpanda:
+    image: redpandadata/redpanda:latest
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=redpanda:9092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+  rss_ingest:
+    build:
+      context: .
+      target: rss-ingest
+    depends_on: [redpanda]
+    environment:
+      - KAFKA_BROKER=${KAFKA_BROKER}
+      - CRYPTOPANIC_TOKEN=${CRYPTOPANIC_TOKEN}
+
+  polygon_scraper:
+    build:
+      context: .
+      target: md-equity
+    depends_on: [redpanda]
+    environment:
+      - KAFKA_BROKER=${KAFKA_BROKER}
+      - POLYGON_API_KEY=${POLYGON_API_KEY}

@@ -1,0 +1,45 @@
+# Symbols the pipeline tracks and the extension highlights.
+# aliases: matched case-sensitively as whole words.
+# bare: whether the plain uppercase symbol (no $) counts. Off for symbols that are also words.
+# product: the price feed symbol (Coinbase product id for crypto).
+crypto:
+  - {symbol: BTC, product: BTC-USD, aliases: [Bitcoin, bitcoin, BTC]}
+  - {symbol: ETH, product: ETH-USD, aliases: [Ethereum, Ether, ether]}
+  - {symbol: SOL, product: SOL-USD, aliases: [Solana]}
+  - {symbol: XRP, aliases: [Ripple]}
+  - {symbol: DOGE, aliases: [Dogecoin, dogecoin]}
+  - {symbol: ADA, aliases: [Cardano]}
+  - {symbol: AVAX, aliases: [Avalanche]}
+  - {symbol: DOT, aliases: [Polkadot], bare: false}
+  - {symbol: LINK, aliases: [Chainlink]}
+  - {symbol: UNI, aliases: [Uniswap]}
+  - {symbol: LTC, aliases: [Litecoin]}
+  - {symbol: BNB, aliases: []}
+  - {symbol: TRX, aliases: [Tron, TRON]}
+  - {symbol: TON, aliases: [Toncoin], bare: false}
+  - {symbol: SUI, aliases: []}
+  - {symbol: HYPE, aliases: [Hyperliquid], bare: false}
+  # Polygon renamed MATIC to POL in 2024. "Polygon" alone is also a market-data vendor, so the
+  # alias only counts with network context (see etl/tickers.py).
+  - {symbol: POL, aliases: [], legacy: [MATIC]}
+
+equities:
+  - {symbol: AAPL, aliases: [Apple]}
+  - {symbol: MSFT, aliases: [Microsoft]}
+  - {symbol: NVDA, aliases: [Nvidia, NVIDIA]}
+  - {symbol: META, aliases: [Meta Platforms, Meta], bare: false}
+  - {symbol: COIN, aliases: [Coinbase], bare: false}
+  - {symbol: TSLA, aliases: [Tesla]}
+  - {symbol: AMZN, aliases: [Amazon]}
+  - {symbol: GOOGL, aliases: [Alphabet, Google]}
+  - {symbol: MSTR, aliases: [MicroStrategy]}
+  - {symbol: HOOD, aliases: [Robinhood], bare: false}
+  - {symbol: JPM, aliases: [JPMorgan, JPMorgan Chase]}
+  - {symbol: GS, aliases: [Goldman Sachs], bare: false}
+  - {symbol: SPY, aliases: [S&P 500]}
+
+# Uppercase words that look like tickers but usually are not.
+stoplist: [AI, CEO, CFO, CTO, USA, US, UK, EU, ETF, ETFs, NEAR, LINK, UNI, ONE, IPO, SEC, FED, GDP,
+           CPI, PCE, FOMC, IT, ALL, ARE, FOR, NOW, NEW, OPEN, BIG, CAN, SO, ON, AT, BE, GO, HAS,
+           TV, API, NFT, DAO, DEX, CEX, TVL, ATH, USD, USDT, USDC, OP, APT, IMF, DOJ, CFTC, FBI,
+           OK, A, I, S, Q1, Q2, Q3, Q4]

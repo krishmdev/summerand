@@ -1,0 +1,62 @@
+# News sources. `credibility` is a hand-set prior in [0, 1] used by the impact score.
+# Set `enabled: false` to drop a feed without deleting it. Feeds were last checked on 2026-08-29.
+poll_seconds: 60
+
+feeds:
+  - name: coindesk
+    url: https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml
+    credibility: 0.80
+  - name: theblock
+    url: https://www.theblock.co/rss.xml   # the old /feeds/rss path returns 404
+    credibility: 0.80
+  - name: decrypt
+    url: https://decrypt.co/feed
+    credibility: 0.70
+  - name: cointelegraph
+    url: https://cointelegraph.com/rss
+    credibility: 0.65
+  - name: bitcoinmagazine
+    url: https://bitcoinmagazine.com/.rss/full/
+    credibility: 0.60
+  - name: cryptoslate
+    url: https://cryptoslate.com/feed/
+    credibility: 0.60
+  - name: cryptonews
+    url: https://cryptonews.com/news/feed
+    credibility: 0.55
+  - name: ft_markets
+    url: https://www.ft.com/markets?format=rss
+    credibility: 0.90
+  - name: cnbc
+    url: https://www.cnbc.com/id/100003114/device/rss/rss.html
+    credibility: 0.85
+  - name: marketwatch
+    url: https://feeds.content.dowjones.io/public/rss/mw_topstories
+    credibility: 0.80
+  - name: benzinga
+    url: https://www.benzinga.com/feed
+    credibility: 0.60
+  - name: investing
+    url: https://www.investing.com/rss/news.rss
+    credibility: 0.65
+  - name: seekingalpha
+    url: https://seekingalpha.com/market_currents.xml
+    credibility: 0.55
+  - name: fed
+    url: https://www.federalreserve.gov/feeds/press_all.xml
+    credibility: 0.95
+  - name: sec
+    url: https://www.sec.gov/news/pressreleases.rss
+    credibility: 0.95
+  - name: reuters
+    url: https://www.reuters.com/rssFeed/cryptocurrency   # returns 401 since Reuters retired it
+    credibility: 0.95
+    enabled: false
+
+cryptopanic:
+  # v1 (/api/v1/posts/) was retired; override with CRYPTOPANIC_URL if the path changes again.
+  url: https://cryptopanic.com/api/developer/v2/posts/?auth_token={token}&public=true
+  poll_seconds: 120
+  credibility: 0.50
+
+default_credibility: 0.50

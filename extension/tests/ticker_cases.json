@@ -1,0 +1,23 @@
+[
+  {"text": "Bitcoin slides as $ETH holds", "expect": ["BTC", "ETH"]},
+  {"text": "Nvidia (NASDAQ: NVDA) beats estimates", "expect": ["NVDA"]},
+  {"text": "The AI boom lifts NVDA and the CEO says more is coming", "expect": ["NVDA"]},
+  {"text": "SEC delays ETF decision as USA regulators weigh in", "expect": []},
+  {"text": "LINK and UNI rally while NEAR stalls", "expect": []},
+  {"text": "Chainlink and Uniswap rally", "expect": ["LINK", "UNI"]},
+  {"text": "Polygon network upgrade cuts POL fees", "expect": ["POL"]},
+  {"text": "Polygon.io adds new market data endpoints", "expect": []},
+  {"text": "Polygon raises prices for its stock data API", "expect": []},
+  {"text": "MATIC holders finish migrating to the new token", "expect": ["POL"]},
+  {"text": "Coinbase (NASDAQ: COIN) shares jump", "expect": ["COIN"]},
+  {"text": "MEME COIN MANIA RETURNS AS ONE TOKEN SOARS", "expect": []},
+  {"text": "Ethereum developers set a date for the next upgrade", "expect": ["ETH"]},
+  {"text": "Metaverse tokens slump", "expect": []},
+  {"text": "Meta Platforms to spend more on data centers", "expect": ["META"]},
+  {"text": "$INTC jumps after the foundry deal", "expect": ["INTC"], "only": "python"},
+  {"text": "$TRUMP memecoin slides", "expect": []},
+  {"text": "Apple and Tesla lead the S&P 500 higher", "expect": ["AAPL", "SPY", "TSLA"]},
+  {"text": "Price hits $100 for a 5% gain", "expect": []},
+  {"text": "Acme Robotics (NYSE: XYZQ) announces results", "expect": ["XYZQ"]},
+  {"text": "Solana ETF filings pile up; SOL up 4%", "expect": ["SOL"]}
+]

@@ -1,145 +1,141 @@
-"""
-rss_spider.py  –  Sprint‑1 (crypto‑wide edition)
-================================================
+"""Poll RSS feeds and publish new items to raw_news.
 
-Ingests *three* news sources and publishes every item to the `raw_news`
-Kafka topic.
-
-    • Crypto‑specialist RSS feeds      (CoinDesk, CoinTelegraph, …)
-    • (Optional) CryptoPanic JSON API  (requires CRYPTOPANIC_TOKEN)
-
-All items are normalised into a common dict:
-    {id, ts, title, url, source}
-
-The rest of the pipeline (ETL, embeddings, etc.) stays unchanged.
+Sprint-1 published every entry on every poll with the ingest time as `ts` and sha256(title) as the
+id. Now: the id is sha256 of the canonical URL, the publish time comes from the feed, only items not
+seen before on that feed go out, summaries are included, and conditional GETs skip unchanged feeds.
 """
 
 from __future__ import annotations
-import aiohttp
+
 import asyncio
-import datetime as dt
+import calendar
+import itertools
+import logging
+from collections import OrderedDict
+from dataclasses import dataclass
+
 import feedparser
-import hashlib
-import json
-import os
-import time
-from typing import Iterable
+import httpx
 
-from aiokafka import AIOKafkaProducer
+from summerand.bus import Bus
+from summerand.bus import topics as T
+from summerand.clock import Clock, WallClock
+from summerand.config import FeedConfig
+from summerand.etl.dedup import article_id
+from summerand.schemas import Envelope, RawNews
 
-#test
-print("rss_spider.py started")
+log = logging.getLogger(__name__)
 
-# ───────────────────────────────────────────────────────────────────────────────
-# 1) Broad editorial crypto‑feeds
-RSS_BASE: list[str] = [
-    "https://www.coindesk.com/arc/outboundfeeds/rss/?outputType=xml",
-    "https://cointelegraph.com/rss",
-    "https://decrypt.co/feed",
-    "https://www.theblock.co/feeds/rss",
-    "https://cryptonews.com/news/feed",
-    "https://www.reuters.com/rssFeed/cryptocurrency",
-]
-
-# Final RSS list (editorial feeds only for now)
-RSS_URLS: list[str] = RSS_BASE
+USER_AGENT = "SummerandRSS/0.2 (+https://github.com/krishmdev/summerand)"
 
 
-# 3) CryptoPanic API (optional)
-CRYPTOPANIC_TOKEN = os.getenv("CRYPTOPANIC_TOKEN")
-CRYPTOPANIC_URL = (
-    f"https://cryptopanic.com/api/v1/posts/?auth_token={CRYPTOPANIC_TOKEN}&public=true"
-    if CRYPTOPANIC_TOKEN
-    else None
-)
+def entry_published_ms(entry: feedparser.FeedParserDict) -> int | None:
+    for key in ("published_parsed", "updated_parsed", "created_parsed"):
+        parsed = entry.get(key)
+        if parsed:
+            # feedparser normalizes to a UTC struct_time; timegm (not mktime) keeps it in UTC.
+            return calendar.timegm(parsed) * 1000
+    return None
 
-# Kafka
-KAFKA_BROKER = os.getenv("KAFKA_BROKER", "redpanda:9092")
-print(f"[DEBUG] KAFKA_BROKER value: {repr(KAFKA_BROKER)}")
-TOPIC = "raw_news"
-POLL_INTERVAL = 30  # seconds between RSS polls
-HEADERS = {"User-Agent": "SummerandRSS/1.0"}
 
-# ───────────────────────────────────────────────────────────────────────────────
-async def fetch_rss(session: aiohttp.ClientSession, url: str) -> str:
-    async with session.get(url, timeout=10, headers=HEADERS) as resp:
-        resp.raise_for_status()
-        return await resp.text()
+def parse_feed(content: bytes | str, feed: FeedConfig, observed_ms: int) -> list[RawNews]:
+    parsed = feedparser.parse(content)
+    items = []
+    for entry in parsed.entries:
+        link = entry.get("link")
+        title = entry.get("title")
+        if not link or not title:
+            continue
+        published = entry_published_ms(entry)
+        summary = entry.get("summary") or entry.get("description") or ""
+        items.append(
+            RawNews(
+                id=article_id(link),
+                source=feed.name,
+                title=title,
+                url=link,
+                summary=summary,
+                published_ms=published if published is not None else observed_ms,
+                observed_ms=observed_ms,
+                ts_inferred=published is None,
+            )
+        )
+    return items
 
-async def consume_rss(producer: AIOKafkaProducer) -> None:
+
+@dataclass
+class _FeedState:
+    etag: str | None = None
+    last_modified: str | None = None
+    failures: int = 0
+    skip_polls: int = 0
+
+
+class RssSpider:
+    def __init__(
+        self,
+        feeds: list[FeedConfig],
+        client: httpx.AsyncClient,
+        clock: Clock | None = None,
+        seen_per_feed: int = 2000,
+    ) -> None:
+        self.feeds = [f for f in feeds if f.enabled]
+        self.client = client
+        self.clock = clock or WallClock()
+        self._seen: dict[str, OrderedDict[str, None]] = {f.name: OrderedDict() for f in self.feeds}
+        self._state = {f.name: _FeedState() for f in self.feeds}
+        self._cap = seen_per_feed
+
+    def _is_new(self, feed: str, item_id: str) -> bool:
+        seen = self._seen[feed]
+        if item_id in seen:
+            seen.move_to_end(item_id)
+            return False
+        seen[item_id] = None
+        if len(seen) > self._cap:
+            seen.popitem(last=False)
+        return True
+
+    async def fetch(self, feed: FeedConfig) -> list[RawNews]:
+        state = self._state[feed.name]
+        if state.skip_polls > 0:
+            state.skip_polls -= 1
+            return []
+        headers = {"User-Agent": USER_AGENT}
+        if state.etag:
+            headers["If-None-Match"] = state.etag
+        if state.last_modified:
+            headers["If-Modified-Since"] = state.last_modified
+        try:
+            resp = await self.client.get(feed.url, headers=headers, timeout=15)
+            if resp.status_code == 304:
+                return []
+            resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            state.failures += 1
+            state.skip_polls = min(2**state.failures, 32) - 1
+            log.warning("feed %s failed (%s); skipping %d polls", feed.name, exc, state.skip_polls)
+            return []
+        state.failures = 0
+        state.etag = resp.headers.get("etag")
+        state.last_modified = resp.headers.get("last-modified")
+        items = parse_feed(resp.content, feed, self.clock.now_ms())
+        return [it for it in items if self._is_new(feed.name, it.id)]
+
+    async def poll_once(self) -> list[RawNews]:
+        batches = await asyncio.gather(*(self.fetch(f) for f in self.feeds))
+        return [item for batch in batches for item in batch]
+
+
+async def run_rss(bus: Bus, spider: RssSpider, poll_seconds: int) -> None:
+    seq = itertools.count()
     while True:
-        async with aiohttp.ClientSession() as session:
-            for url in RSS_URLS:
-                try:
-                    xml = await fetch_rss(session, url)
-                    feed = feedparser.parse(xml)
-                except Exception as exc:
-                    print(f"[rss] WARN {url} → {exc}")
-                    continue
-
-                for entry in feed.entries:
-                    uid = hashlib.sha256(entry.title.encode()).hexdigest()
-                    await producer.send_and_wait(
-                        TOPIC,
-                        {
-                            "id": uid,
-                            "ts": int(time.time() * 1000),
-                            "title": entry.title,
-                            "url": entry.link,
-                            "source": url,
-                        },
-                    )
-        await asyncio.sleep(POLL_INTERVAL)
-
-# ───────────────────────────────────────────────────────────────────────────────
-async def consume_cryptopanic(producer: AIOKafkaProducer) -> None:
-    """Continuously poll CryptoPanic JSON API if token is set."""
-    if not CRYPTOPANIC_URL:
-        return  # token not provided; skip
-    last_seen: set[str] = set()
-    async with aiohttp.ClientSession(headers=HEADERS) as session:
-        while True:
-            try:
-                async with session.get(CRYPTOPANIC_URL, timeout=10) as resp:
-                    data = await resp.json()
-                for post in data.get("results", []):
-                    if post["id"] in last_seen:
-                        continue
-                    last_seen.add(post["id"])
-                    await producer.send_and_wait(
-                        TOPIC,
-                        {
-                            "id": str(post["id"]),
-                            "ts": int(
-                                dt.datetime.fromisoformat(post["published_at"].rstrip("Z"))
-                                .timestamp()
-                                * 1000
-                            ),
-                            "title": post["title"],
-                            "url": post["url"],
-                            "source": "cryptopanic",
-                        },
-                    )
-                # CryptoPanic free API refreshes roughly every minute
-            except Exception as exc:
-                print(f"[cryptopanic] WARN {exc}")
-            await asyncio.sleep(60)
-
-# ───────────────────────────────────────────────────────────────────────────────
-async def main() -> None:
-    print(f"[DEBUG] Creating producer with bootstrap_servers: {repr(KAFKA_BROKER)}")
-    producer = AIOKafkaProducer(
-        bootstrap_servers=KAFKA_BROKER,
-        value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-    )
-    await producer.start()
-    try:
-        tasks = [asyncio.create_task(consume_rss(producer))]
-        if CRYPTOPANIC_URL:
-            tasks.append(asyncio.create_task(consume_cryptopanic(producer)))
-        await asyncio.gather(*tasks)
-    finally:
-        await producer.stop()
-
-if __name__ == "__main__":
-    asyncio.run(main())
+        items = await spider.poll_once()
+        for item in sorted(items, key=lambda x: (x.published_ms, x.id)):
+            env = Envelope(
+                kind="news", ts_ms=item.observed_ms, seq=next(seq), data=item.model_dump()
+            )
+            await bus.publish(T.RAW_NEWS, env.model_dump(), key=item.id)
+        if items:
+            log.info("published %d new items", len(items))
+        await asyncio.sleep(poll_seconds)

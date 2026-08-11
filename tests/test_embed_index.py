@@ -98,7 +98,7 @@ async def test_cache_avoids_reembedding():
 
 def test_embedder_ids_carry_dim_and_preprocessing():
     e = HashingEmbedder(512)
-    provider, model, rev, dim, pp = e.id.split("/")
+    provider, _model, _rev, dim, pp = e.id.split("/")
     assert provider == "hashing" and dim == "512" and len(pp) == 8
     with pytest.raises(ValueError):
         EmbeddingIndex([])

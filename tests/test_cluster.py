@@ -51,7 +51,7 @@ async def test_ids_are_stable_across_refits():
     # One minute later a few articles arrived; nothing else changed.
     more = headlines("solana", 14, seed=0)[12:]
     _, X2 = await embed(texts + more)
-    s2 = fit(clu, MINUTE_MS, ids + ["n1", "n2"], X2, emb, select=False)
+    s2 = fit(clu, MINUTE_MS, [*ids, "n1", "n2"], X2, emb, select=False)
     assert s2.fresh == [] and s2.retired == []
     assert set(s2.clusters) == set(s1.clusters)
     sol = s2.cluster_of("d0")

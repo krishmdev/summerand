@@ -2,8 +2,8 @@
 
 MiniBatchKMeans.partial_fit keeps cumulative per-center counts, so an old topic would keep pulling
 on its center long after its articles left the window. Instead every tick refits on exactly the
-articles in [t-6h, t] (warm-started from the previous centers when k hasn't changed), and every 10
-minutes k is re-selected by cosine silhouette.
+articles in [t-6h, t]. When k hasn't changed the fit is also tried warm-started from the previous
+centers and the lower-inertia result wins. Every 10 minutes k is re-selected by cosine silhouette.
 
 Stable IDs: Hungarian matching between the previous and new clusters. Within one embedding
 generation the assignment runs on centroid cosine, and an assigned pair is rejected unless it also
@@ -173,9 +173,14 @@ class WindowClusterer:
                 else:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        km = _kmeans(k, self.seed, self._centers if warm else "k-means++")
-                        labels = km.fit_predict(X)
-                    centers = km.cluster_centers_
+                        km = _kmeans(k, self.seed).fit(X)
+                        if warm:
+                            # The warm start keeps centers steady between ticks, but it can also
+                            # keep a bad split alive; keep whichever fit has the lower inertia.
+                            warm_km = _kmeans(k, self.seed, self._centers).fit(X)
+                            if warm_km.inertia_ <= km.inertia_ + 1e-9:
+                                km = warm_km
+                    labels, centers = km.labels_, km.cluster_centers_
             self.k = k
             self._centers = centers.astype(np.float32)
             self._centers_generation = generation

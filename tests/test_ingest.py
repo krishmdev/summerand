@@ -20,8 +20,10 @@ async def test_spider_sends_only_new_items_and_uses_conditional_get():
             return httpx.Response(304)
         return httpx.Response(200, content=RSS.encode(), headers={"etag": '"v1"'})
 
-    feeds = [FeedConfig("ex", "https://example.com/rss", 0.5),
-             FeedConfig("dead", "https://example.com/dead", 0.5, enabled=False)]
+    feeds = [
+        FeedConfig("ex", "https://example.com/rss", 0.5),
+        FeedConfig("dead", "https://example.com/dead", 0.5, enabled=False),
+    ]
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         spider = RssSpider(feeds, client, clock=FixedClock())
         first = await spider.poll_once()

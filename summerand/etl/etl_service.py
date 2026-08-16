@@ -9,7 +9,7 @@ import warnings
 
 from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 
-from summerand.bus import Bus
+from summerand.bus import Bus, Subscription
 from summerand.bus import topics as T
 from summerand.config import Watchlist
 from summerand.etl.dedup import (
@@ -98,9 +98,9 @@ class Etl:
         return item
 
 
-async def run_etl(bus: Bus, etl: Etl, group: str = "etl") -> None:
+async def run_etl(bus: Bus, etl: Etl, group: str = "etl", sub: Subscription | None = None) -> None:
     """Consume raw_news until end-of-stream, forwarding watermarks so event time keeps moving."""
-    sub = bus.subscribe(T.RAW_NEWS, group)
+    sub = sub or bus.subscribe(T.RAW_NEWS, group)
     async for msg in sub:
         env = Envelope.model_validate(msg)
         if env.kind in ("watermark", "eos"):

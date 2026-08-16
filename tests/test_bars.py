@@ -23,8 +23,18 @@ def test_bar_builder_closes_minutes():
 def test_price_book_has_no_lookahead():
     pb = PriceBook()
     for i, close in enumerate([100, 101, 102]):
-        pb.add(Bar(symbol="BTC", ts_ms=i * MINUTE_MS, open=close, high=close, low=close,
-                   close=close, volume=1, venue="t"))
+        pb.add(
+            Bar(
+                symbol="BTC",
+                ts_ms=i * MINUTE_MS,
+                open=close,
+                high=close,
+                low=close,
+                close=close,
+                volume=1,
+                venue="t",
+            )
+        )
     # The bar for minute 0 is only known at 60s.
     assert pb.close_at("BTC", 59_999) is None
     assert pb.close_at("BTC", 60_000) == 100

@@ -1,2 +1,3 @@
+from summerand.cli import app
 
-print("Hello Summerand")
+app()

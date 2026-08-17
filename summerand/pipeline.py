@@ -123,6 +123,11 @@ class Pipeline:
             self.store.save_bars(self._new_bars)
             self._new_bars = []
 
+    def finish(self) -> None:
+        """Persist whatever arrived after the last recluster tick (end of a replay)."""
+        if self.clock.started:
+            self._flush_writes(self.clock.now_ms() + MINUTE_MS)
+
     def window_ids(self, now_ms: int) -> list[str]:
         lo = now_ms - self.cfg.window_ms
         inside = [a for a in self.articles.values() if lo <= a.published_ms <= now_ms]
@@ -441,4 +446,6 @@ async def run_pipeline(
             p.cancel()
         for s in subs.values():
             await s.close()
+    if driver.finished:
+        pipeline.finish()
     return driver

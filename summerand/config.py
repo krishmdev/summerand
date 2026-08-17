@@ -164,4 +164,8 @@ def load_watchlist(config_dir: Path) -> Watchlist:
         with sp500.open() as fh:
             universe |= {row["symbol"].replace(".", "-") for row in csv.DictReader(fh)}
             universe |= {row.replace("-", ".") for row in universe}
-    return Watchlist(symbols, frozenset(data.get("stoplist", [])), frozenset(universe))
+    stoplist = data.get("stoplist", [])
+    bad = [w for w in stoplist if not isinstance(w, str)]
+    if bad:  # YAML 1.1 reads bare ON/OFF/YES/NO as booleans
+        raise ValueError(f"quote these stoplist entries in watchlist.yaml: {bad}")
+    return Watchlist(symbols, frozenset(stoplist), frozenset(universe))

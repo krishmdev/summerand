@@ -40,6 +40,6 @@ equities:
 
 # Uppercase words that look like tickers but usually are not.
 stoplist: [AI, CEO, CFO, CTO, USA, US, UK, EU, ETF, ETFs, NEAR, LINK, UNI, ONE, IPO, SEC, FED, GDP,
-           CPI, PCE, FOMC, IT, ALL, ARE, FOR, NOW, NEW, OPEN, BIG, CAN, SO, ON, AT, BE, GO, HAS,
+           CPI, PCE, FOMC, IT, ALL, ARE, FOR, NOW, NEW, OPEN, BIG, CAN, SO, "ON", AT, BE, GO, HAS,
            TV, API, NFT, DAO, DEX, CEX, TVL, ATH, USD, USDT, USDC, OP, APT, IMF, DOJ, CFTC, FBI,
            OK, A, I, S, Q1, Q2, Q3, Q4]

@@ -74,7 +74,7 @@ async def test_run_etl_forwards_watermarks(watchlist):
     out = bus.subscribe(T.CLEAN_NEWS)
     import asyncio
 
-    task = asyncio.create_task(run_etl(bus, Etl(watchlist)))
+    task = asyncio.create_task(run_etl(bus, Etl(watchlist), stop_on_eos=True))
     await asyncio.sleep(0)
     r = raw("https://x.com/1", "Ether jumps")
     await bus.publish(

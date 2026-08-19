@@ -33,12 +33,14 @@ class EventTimeDriver:
         handler: Handler,
         inputs: Iterable[str],
         lateness_ms: int = 2 * MINUTE_MS,
+        ignore_eos: bool = False,
     ) -> None:
         self.scheduler = scheduler
         self.handler = handler
         self.inputs = list(inputs)
         self._order = {topic: i for i, topic in enumerate(self.inputs)}
         self.lateness_ms = lateness_ms
+        self.ignore_eos = ignore_eos
         self._heap: list[tuple[int, int, int, int, str, Envelope]] = []
         self._tiebreak = itertools.count()
         self._wm: dict[str, float] = {t: -_INF for t in self.inputs}
@@ -62,6 +64,8 @@ class EventTimeDriver:
         if topic not in self._wm:
             raise KeyError(f"unknown input topic {topic!r}")
         if env.kind == "eos":
+            if self.ignore_eos:
+                return
             self._done.add(topic)
             self._wm[topic] = _INF
         elif env.kind == "watermark":
@@ -81,7 +85,10 @@ class EventTimeDriver:
         await self._release()
 
     async def advance_idle(self, topic: str, ts_ms: int) -> None:
-        """Live mode: move an idle topic's watermark forward from wall time."""
+        """Live mode: move an idle topic's watermark forward from wall time.
+
+        Events already offered are safe (they sit in the heap and release in order). The caller
+        must only do this when nothing from the topic is still queued upstream."""
         if topic in self._done:
             return
         self._wm[topic] = max(self._wm[topic], ts_ms)

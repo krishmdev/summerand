@@ -36,6 +36,19 @@ class KafkaSubscription:
         async for record in self._consumer:
             yield record.value
 
+    async def caught_up(self) -> bool:
+        """True once our position has reached the broker's high watermark on every partition."""
+        if not self._started:
+            return False
+        parts = self._consumer.assignment()
+        if not parts:
+            return False
+        for tp in parts:
+            high = self._consumer.highwater(tp)
+            if high is None or await self._consumer.position(tp) < high:
+                return False
+        return True
+
     async def close(self) -> None:
         if self._started:
             await self._consumer.stop()
@@ -43,8 +56,12 @@ class KafkaSubscription:
 
 
 class KafkaBus:
-    def __init__(self, brokers: str) -> None:
+    """`prefix` namespaces every topic, so the demo-kafka replay (prefix "demo.") can never leave
+    an end-of-stream marker on the topics the live pipeline reads."""
+
+    def __init__(self, brokers: str, prefix: str = "") -> None:
         self.brokers = brokers
+        self.prefix = prefix
         self._producer: AIOKafkaProducer | None = None
         self._subs: list[KafkaSubscription] = []
 
@@ -63,12 +80,12 @@ class KafkaBus:
         if self._producer is None:
             await self.start()
         assert self._producer is not None
-        await self._producer.send(topic, msg, key=key.encode() if key else None)
+        await self._producer.send(self.prefix + topic, msg, key=key.encode() if key else None)
 
     def subscribe(
         self, topic: str, group: str | None = None, *, from_beginning: bool = True
     ) -> KafkaSubscription:
-        sub = KafkaSubscription(self.brokers, topic, group, from_beginning)
+        sub = KafkaSubscription(self.brokers, self.prefix + topic, group, from_beginning)
         self._subs.append(sub)
         return sub
 

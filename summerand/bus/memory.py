@@ -26,6 +26,9 @@ class MemorySubscription:
                 return
             yield item
 
+    async def caught_up(self) -> bool:
+        return self.queue.empty()
+
     async def close(self) -> None:
         if not self._closed:
             self._closed = True

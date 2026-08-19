@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     kafka_broker: str = "localhost:19092"
+    summerand_topic_prefix: str = ""
     database_url: str = "sqlite:///var/summerand.sqlite"
 
     openai_api_key: SecretStr | None = None

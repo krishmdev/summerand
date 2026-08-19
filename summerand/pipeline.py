@@ -14,6 +14,7 @@ import json
 import logging
 import math
 import time
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
@@ -41,6 +42,7 @@ K_SELECT_MS = 10 * MINUTE_MS
 BRIEF_MAX_AGE_MS = 30 * MINUTE_MS
 BRIEF_CHANGE = 0.3
 BRIEF_TOP = 8
+CATCH_UP_MS = 5 * MINUTE_MS
 MARKET_SYMBOLS = ["BTC", "ETH", "SOL", "SPY", "NVDA", "AAPL", "COIN"]
 
 
@@ -62,8 +64,12 @@ class Pipeline:
         briefer: Briefer | None = None,
         clusterer: WindowClusterer | None = None,
         config: PipelineConfig | None = None,
+        live: bool = False,
+        wall_ms: Any = None,
     ) -> None:
         self.store = store
+        self.live = live
+        self._wall_ms = wall_ms or (lambda: time.time_ns() // 1_000_000)
         self.bus = bus
         self.index = index
         self.cfg = config or PipelineConfig()
@@ -91,6 +97,7 @@ class Pipeline:
         self.brief_log: list[list[Any]] = []
         self.stats = {"news": 0, "bars": 0, "ticks": 0, "stale_snapshots": 0, "regenerations": 0}
         self.job_seconds: dict[str, float] = {}
+        self.late_dropped: Counter[str] = Counter()
 
     # inputs ------------------------------------------------------------------------------------
 
@@ -122,6 +129,15 @@ class Pipeline:
         if self._new_bars:
             self.store.save_bars(self._new_bars)
             self._new_bars = []
+
+    def catching_up(self, now_ms: int) -> bool:
+        """Live mode after a restart: we're re-reading retained history. Don't pay for LLM briefs
+        or push stale rankings to clients until event time is within 5 minutes of wall time."""
+        return self.live and now_ms < self._wall_ms() - CATCH_UP_MS
+
+    async def _publish(self, topic: str, env: Envelope) -> None:
+        if not self.catching_up(env.ts_ms):
+            await self.bus.publish(topic, env.model_dump())
 
     def finish(self) -> None:
         """Persist whatever arrived after the last recluster tick (end of a replay)."""
@@ -231,12 +247,13 @@ class Pipeline:
             [
                 now_ms,
                 snap["stale"],
-                [[s["cluster_id"], s["rank"], s["score"]] for s in snap["stories"]],
+                [
+                    [s["cluster_id"], s["rank"], s["score"], sorted(s["components"].items())]
+                    for s in snap["stories"]
+                ],
             ]
         )
-        await self.bus.publish(
-            T.RANKED_STORIES, Envelope(kind="snapshot", ts_ms=now_ms, data=snap).model_dump()
-        )
+        await self._publish(T.RANKED_STORIES, Envelope(kind="snapshot", ts_ms=now_ms, data=snap))
 
     def _items(self, member_ids: list[str], limit: int = 8) -> list[dict[str, Any]]:
         members = [self.articles[i] for i in member_ids if i in self.articles]
@@ -278,7 +295,9 @@ class Pipeline:
                 f"{story['size']} reports from {len(story['sources'])} sources since "
                 f"{hhmm(story['first_ms'])} UTC"
             )
-            result = await self.briefer.cluster_brief(cid, cluster.members, items, facts)
+            result = await self.briefer.cluster_brief(
+                cid, cluster.members, items, facts, use_llm=not self.catching_up(now_ms)
+            )
             brief = {
                 "kind": "cluster",
                 "cluster_id": cid,
@@ -297,9 +316,8 @@ class Pipeline:
             story["brief"] = brief
             self.store.save_brief(brief)
             self._log_brief(brief)
-            await self.bus.publish(
-                T.BRIEFS,
-                Envelope(kind="cluster_update", ts_ms=now_ms, data={"story": story}).model_dump(),
+            await self._publish(
+                T.BRIEFS, Envelope(kind="cluster_update", ts_ms=now_ms, data={"story": story})
             )
         for cid in [c for c in self.cluster_briefs if c not in state.clusters]:
             self.cluster_briefs.pop(cid, None)
@@ -337,7 +355,7 @@ class Pipeline:
             for s in top
         ]
         facts = self.market_facts(now_ms)
-        result = await self.briefer.market_brief(items, facts)
+        result = await self.briefer.market_brief(items, facts, use_llm=not self.catching_up(now_ms))
         brief = {
             "kind": "market",
             "cluster_id": None,
@@ -354,9 +372,7 @@ class Pipeline:
         self.market = brief
         self.store.save_brief(brief)
         self._log_brief(brief)
-        await self.bus.publish(
-            T.BRIEFS, Envelope(kind="market_brief", ts_ms=now_ms, data=brief).model_dump()
-        )
+        await self._publish(T.BRIEFS, Envelope(kind="market_brief", ts_ms=now_ms, data=brief))
 
     def _log_brief(self, brief: dict[str, Any]) -> None:
         self.brief_log.append(
@@ -378,6 +394,7 @@ class Pipeline:
             "retired": sorted(self.clusterer.retired),
             "snapshots": self.snapshot_log,
             "briefs": self.brief_log,
+            "late_dropped": dict(sorted(self.late_dropped.items())),
         }
 
     def digest_hash(self) -> str:
@@ -406,41 +423,74 @@ async def run_pipeline(
     lateness_ms: int = 2 * MINUTE_MS,
     live: bool = False,
     idle_after_s: float = 30.0,
+    absent_warn_s: float = 60.0,
+    poll_s: float = 5.0,
     group: str | None = None,
     on_driver: Any = None,
     subs: dict[str, Any] | None = None,
+    wall_ms: Any = None,
 ) -> EventTimeDriver:
-    """Feed the pipeline from bus topics until every input has sent end-of-stream (or forever in
-    live mode). In live mode an input that has been quiet for idle_after_s has its watermark
-    moved to wall time minus the lateness, so a silent feed doesn't stall event time."""
-    driver = EventTimeDriver(pipeline.scheduler, pipeline.handle, inputs, lateness_ms)
+    """Feed the pipeline from bus topics until every input has sent end-of-stream.
+
+    Live mode runs forever and ignores end-of-stream markers (a retained topic may still hold one
+    from an old replay). An input counts as idle only when nothing from it is waiting in our
+    queue, its subscription has caught up with the broker, and nothing has arrived for
+    idle_after_s; then its watermark moves to wall time minus the lateness, so a quiet feed
+    doesn't stall event time. A backlog is never mistaken for silence."""
+    wall_ms = wall_ms or (lambda: time.time_ns() // 1_000_000)
+    driver = EventTimeDriver(
+        pipeline.scheduler, pipeline.handle, inputs, lateness_ms, ignore_eos=live
+    )
+    pipeline.late_dropped = driver.late_dropped
     if on_driver:
         on_driver(driver)
     queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
-    last_seen = {t: time.monotonic() for t in inputs}
+    started = time.monotonic()
+    arrived: dict[str, float | None] = dict.fromkeys(inputs)
+    pending = dict.fromkeys(inputs, 0)
+    warned: set[str] = set()
     subs = subs or {t: bus.subscribe(t, group) for t in inputs}
 
     async def pump(topic: str) -> None:
         async for msg in subs[topic]:
+            arrived[topic] = time.monotonic()
+            pending[topic] += 1
             await queue.put((topic, msg))
-            if msg.get("kind") == "eos":
+            if msg.get("kind") == "eos" and not live:
                 return
+
+    async def caught_up(topic: str) -> bool:
+        check = getattr(subs[topic], "caught_up", None)
+        return True if check is None else await check()
 
     pumps = [asyncio.create_task(pump(t)) for t in inputs]
     try:
         while not driver.finished:
             try:
-                topic, msg = await asyncio.wait_for(queue.get(), timeout=5.0 if live else None)
+                topic, msg = await asyncio.wait_for(
+                    queue.get(), timeout=poll_s if live else absent_warn_s
+                )
             except TimeoutError:
                 topic = None
             if topic is not None:
-                last_seen[topic] = time.monotonic()
+                pending[topic] -= 1
                 await driver.offer(topic, Envelope.model_validate(msg))
+            now = time.monotonic()
+            for t in inputs:
+                if arrived[t] is None and now - started > absent_warn_s and t not in warned:
+                    warned.add(t)
+                    log.warning(
+                        "input %s has produced nothing after %.0fs; event time can't advance "
+                        "past it%s",
+                        t,
+                        absent_warn_s,
+                        "" if live else " (replay mode)",
+                    )
             if live:
-                wall_ms = time.time_ns() // 1_000_000
                 for t in inputs:
-                    if time.monotonic() - last_seen[t] > idle_after_s:
-                        await driver.advance_idle(t, wall_ms - lateness_ms)
+                    quiet = now - (arrived[t] or started) > idle_after_s
+                    if quiet and pending[t] == 0 and await caught_up(t):
+                        await driver.advance_idle(t, wall_ms() - lateness_ms)
     finally:
         for p in pumps:
             p.cancel()

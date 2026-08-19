@@ -98,14 +98,23 @@ class Etl:
         return item
 
 
-async def run_etl(bus: Bus, etl: Etl, group: str = "etl", sub: Subscription | None = None) -> None:
-    """Consume raw_news until end-of-stream, forwarding watermarks so event time keeps moving."""
+async def run_etl(
+    bus: Bus,
+    etl: Etl,
+    group: str = "etl",
+    sub: Subscription | None = None,
+    stop_on_eos: bool = False,
+) -> None:
+    """Consume raw_news, forwarding watermarks so event time keeps moving downstream.
+
+    End-of-stream is forwarded too, but only a replay run (stop_on_eos) exits on it; the
+    long-running compose ETL keeps going."""
     sub = sub or bus.subscribe(T.RAW_NEWS, group)
     async for msg in sub:
         env = Envelope.model_validate(msg)
         if env.kind in ("watermark", "eos"):
             await bus.publish(T.CLEAN_NEWS, env.model_dump())
-            if env.kind == "eos":
+            if env.kind == "eos" and stop_on_eos:
                 break
             continue
         if env.kind != "news":

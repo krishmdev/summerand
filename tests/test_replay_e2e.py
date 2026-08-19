@@ -54,3 +54,28 @@ async def test_unpaced_and_300x_replays_are_identical(settings, tmp_path):
     assert a["snapshots"] == b["snapshots"]
     assert a["briefs"] == b["briefs"]
     assert fast.pipeline.digest_hash() == paced.pipeline.digest_hash()
+
+
+async def test_embedding_outage_serves_stale_then_switches_generation(settings):
+    from summerand.nlp.index import RetryPolicy
+    from tests.test_embed_index import FlakyOpenAI, no_sleep
+
+    primary, fallback = FlakyOpenAI(budget=12), HashingEmbedder(512)
+    stack = build_stack(
+        settings, chain=[primary, fallback], llm=None, retry=RetryPolicy(attempts=2, sleep=no_sleep)
+    )
+    await run_replay(stack, TINY, None)
+    p = stack.pipeline
+    assert p.stats["regenerations"] == 1 and p.stats["stale_snapshots"] >= 1
+    assert p.index.generation == 2 and p.index.gen.embedder_id == fallback.id
+    p.index.check()
+    state = p.clusterer.state
+    assert state.generation == 2
+    assert {c.embedder_id for c in state.clusters.values()} == {fallback.id}
+    assert {c.centroid.shape for c in state.clusters.values()} == {(512,)}
+    snaps = stack.store.snapshots()
+    stale = [s for s in snaps if s["stale"]]
+    # While embeddings were down the last good ranking was re-served unchanged, flagged stale.
+    assert stale and all(s["embedder_id"] == primary.id for s in stale)
+    assert all(s["stories"] == snaps[snaps.index(s) - 1]["stories"] for s in stale)
+    assert snaps[-1]["stale"] is False and snaps[-1]["embedder_id"] == fallback.id

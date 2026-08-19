@@ -75,4 +75,5 @@ markers = [
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:websockets.*",
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
 ]

@@ -1,0 +1,64 @@
+{
+  "recorded_at": "2026-08-29T06:41:00.000Z",
+  "window": [
+    "2026-08-28T06:41:00.000Z",
+    "2026-08-29T06:41:00.000Z"
+  ],
+  "news": 186,
+  "news_by_source": {
+    "benzinga": 10,
+    "bitcoinmagazine": 8,
+    "cnbc": 29,
+    "coindesk": 18,
+    "cointelegraph": 22,
+    "cryptonews": 9,
+    "cryptoslate": 10,
+    "decrypt": 14,
+    "fed": 1,
+    "ft_markets": 25,
+    "investing": 10,
+    "marketwatch": 10,
+    "sec": 1,
+    "seekingalpha": 7,
+    "theblock": 12
+  },
+  "bars_by_symbol": {
+    "AAPL": 823,
+    "BTC": 1440,
+    "COIN": 730,
+    "ETH": 1440,
+    "MSFT": 838,
+    "MSTR": 912,
+    "NVDA": 943,
+    "SOL": 1440,
+    "SPY": 884,
+    "TSLA": 926
+  },
+  "feed_status": {
+    "coindesk": "18/25 in window",
+    "theblock": "12/20 in window",
+    "decrypt": "14/37 in window",
+    "cointelegraph": "22/30 in window",
+    "bitcoinmagazine": "8/10 in window",
+    "cryptoslate": "10/10 in window",
+    "cryptonews": "9/20 in window",
+    "ft_markets": "25/25 in window",
+    "cnbc": "29/30 in window",
+    "marketwatch": "10/10 in window",
+    "benzinga": "10/10 in window",
+    "investing": "10/10 in window",
+    "seekingalpha": "7/7 in window",
+    "fed": "1/20 in window",
+    "sec": "1/25 in window"
+  },
+  "polygon_status": {
+    "SPY": "884 bars",
+    "NVDA": "943 bars",
+    "AAPL": "823 bars",
+    "MSFT": "838 bars",
+    "COIN": "730 bars",
+    "TSLA": "926 bars",
+    "MSTR": "912 bars"
+  },
+  "bytes": 309017
+}

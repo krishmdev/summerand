@@ -100,8 +100,12 @@ def mmr_select(texts: list[str], k: int = 3, lam: float = MMR_LAMBDA) -> list[in
 def extractive(items: list[dict[str, Any]], facts: list[str], k: int = 3) -> str:
     cands = candidates(items)
     picks = mmr_select([t for _, t in cands], k=k)
+    # A picked title can itself be two sentences ("Want to retire early? Here's how."), so each
+    # piece gets the citation.
     body = " ".join(
-        f"{cands[i][1]} [{cands[i][0]}]" for i in sorted(picks, key=lambda i: (cands[i][0], i))
+        f"{part} [{cands[i][0]}]"
+        for i in sorted(picks, key=lambda i: (cands[i][0], i))
+        for part in split_sentences(cands[i][1])
     )
     why = "Why it matters: " + "; ".join(facts) + "." if facts else ""
     return body + ("\n" + why if why else "")

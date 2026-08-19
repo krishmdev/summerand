@@ -109,3 +109,18 @@ async def test_llm_errors_fall_back():
 
     res = await Briefer(Broken()).market_brief(ITEMS, FACTS)
     assert res.method == "extractive" and res.problems == ["llm error: ConnectionError"]
+
+
+def test_extractive_cites_multi_sentence_titles():
+    items = [
+        {
+            "n": 1,
+            "source": "mw",
+            "time": "13:00 UTC",
+            "title": "Want to retire early? Here is the math",
+            "summary": "",
+            "url": "u",
+        }
+    ]
+    text = extractive(items, [])
+    assert validate_brief(text, 1, render_items(items, [])) == []

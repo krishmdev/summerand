@@ -198,6 +198,12 @@ class Store:
 
     # reads -------------------------------------------------------------------------------------
 
+    def next_cluster_number(self) -> int:
+        with Session(self.engine) as s:
+            ids = s.execute(select(ClusterRow.id)).scalars().all()
+        nums = [int(i[1:]) for i in ids if i[:1] == "c" and i[1:].isdigit()]
+        return max(nums, default=0) + 1
+
     def latest_snapshot(self) -> dict[str, Any] | None:
         with Session(self.engine) as s:
             row = s.execute(select(Snapshot).order_by(Snapshot.ts_ms.desc()).limit(1)).scalar()

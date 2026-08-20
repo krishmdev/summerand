@@ -15,6 +15,7 @@ from summerand.config import Settings
 from summerand.driver import EventTimeDriver
 from summerand.etl.etl_service import Etl, run_etl
 from summerand.ingest.replay import replay
+from summerand.nlp.cluster import WindowClusterer
 from summerand.nlp.embed import Embedder, build_embedders
 from summerand.nlp.index import EmbeddingIndex, RetryPolicy
 from summerand.pipeline import Pipeline, run_pipeline
@@ -54,6 +55,7 @@ def build_stack(
     llm: LLM | str | None = "auto",
     store: Store | None = None,
     retry: RetryPolicy | None = None,
+    live: bool = False,
 ) -> Stack:
     bus = InMemoryBus()
     store = store or Store(settings.database_url)
@@ -67,7 +69,13 @@ def build_stack(
     index = EmbeddingIndex(chain, retry=retry, cache=store)
     briefer = Briefer(build_llm(settings) if llm == "auto" else llm)
     pipeline = Pipeline(
-        store=store, bus=bus, index=index, sources=settings.sources, briefer=briefer
+        store=store,
+        bus=bus,
+        index=index,
+        sources=settings.sources,
+        briefer=briefer,
+        clusterer=WindowClusterer(first_id=store.next_cluster_number()),
+        live=live,
     )
     log.info("embedder chain: %s", " -> ".join(e.id for e in chain))
     return Stack(settings, bus, store, pipeline, Etl(settings.watchlist))
@@ -82,7 +90,7 @@ async def run_replay(stack: Stack, fixture: Path, speed: float | None) -> EventT
     def keep(driver: EventTimeDriver) -> None:
         stack.driver = driver
 
-    etl = asyncio.create_task(run_etl(stack.bus, stack.etl, sub=raw_sub))
+    etl = asyncio.create_task(run_etl(stack.bus, stack.etl, sub=raw_sub, stop_on_eos=True))
     pipe = asyncio.create_task(
         run_pipeline(stack.bus, stack.pipeline, inputs, subs=subs, on_driver=keep)
     )

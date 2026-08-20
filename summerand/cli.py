@@ -205,7 +205,7 @@ async def _live(settings: Settings, host: str, port: int) -> None:
     from summerand.pipeline import run_pipeline
     from summerand.stack import build_stack
 
-    stack = build_stack(settings)
+    stack = build_stack(settings, live=True)
     stack.mode = "live"
     hub = Hub(event_clock=stack.pipeline.clock)
     inputs = [T.CLEAN_NEWS, T.TICKS_CRYPTO]
@@ -247,7 +247,7 @@ async def _live(settings: Settings, host: str, port: int) -> None:
 async def _kafka(settings: Settings):
     from summerand.bus.kafka import KafkaBus
 
-    bus = KafkaBus(settings.kafka_broker)
+    bus = KafkaBus(settings.kafka_broker, prefix=settings.summerand_topic_prefix)
     for attempt in range(30):
         try:
             await bus.start()
@@ -331,7 +331,9 @@ def ingest_cryptopanic() -> None:
 
 
 @app.command()
-def etl() -> None:
+def etl(
+    once: Annotated[bool, typer.Option(help="exit at end-of-stream (replay runs)")] = False,
+) -> None:
     """raw_news -> clean_news on Kafka."""
     settings = _setup("etl")
 
@@ -339,7 +341,7 @@ def etl() -> None:
         from summerand.etl.etl_service import Etl, run_etl
 
         bus = await _kafka(settings)
-        await run_etl(bus, Etl(settings.watchlist))
+        await run_etl(bus, Etl(settings.watchlist), stop_on_eos=once)
         await bus.close()
 
     asyncio.run(run())
@@ -348,18 +350,21 @@ def etl() -> None:
 @app.command()
 def pipeline(
     inputs: Annotated[
-        str, typer.Option(help="comma-separated input topics")
-    ] = "clean_news,ticks_crypto",
+        str | None,
+        typer.Option(help="topics; default live clean_news,ticks_crypto, replay clean_news,bars"),
+    ] = None,
     live_mode: Annotated[bool, typer.Option("--live/--replay")] = True,
 ) -> None:
     """Consume clean news and prices from Kafka, write the store, publish rankings and briefs.
 
-    State is rebuilt from the retained topics on every start (no committed offsets), so a restart
-    replays the log instead of losing the window."""
+    State is rebuilt from the retained topics on every start (no committed offsets; retention is
+    set per topic in compose), so a restart replays the recent log instead of losing the window.
+    While catching up, LLM briefs and WebSocket pushes are suppressed."""
     settings = _setup("pipeline")
 
     async def run() -> None:
         from summerand.brief.generate import Briefer
+        from summerand.nlp.cluster import WindowClusterer
         from summerand.nlp.embed import build_embedders
         from summerand.nlp.index import EmbeddingIndex
         from summerand.pipeline import Pipeline, run_pipeline
@@ -380,9 +385,13 @@ def pipeline(
             index=EmbeddingIndex(chain, cache=store),
             sources=settings.sources,
             briefer=Briefer(build_llm(settings)),
+            clusterer=WindowClusterer(first_id=store.next_cluster_number()),
+            live=live_mode,
         )
-        log.info("pipeline inputs=%s embedder=%s", inputs, chain[0].id)
-        driver = await run_pipeline(bus, pipe, inputs.split(","), live=live_mode)
+        default = "clean_news,ticks_crypto" if live_mode else "clean_news,bars"
+        topics = (inputs or default).split(",")
+        log.info("pipeline inputs=%s embedder=%s", topics, chain[0].id)
+        driver = await run_pipeline(bus, pipe, topics, live=live_mode)
         log.info("pipeline finished: %s", json.dumps(pipe.status(driver)))
         await bus.close()
 

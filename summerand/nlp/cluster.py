@@ -3,7 +3,8 @@
 MiniBatchKMeans.partial_fit keeps cumulative per-center counts, so an old topic would keep pulling
 on its center long after its articles left the window. Instead every tick refits on exactly the
 articles in [t-6h, t]. When k hasn't changed the fit is also tried warm-started from the previous
-centers and the lower-inertia result wins. Every 10 minutes k is re-selected by cosine silhouette.
+centers; the fresh fit replaces it only if its inertia is at least 3% lower. Every 10 minutes
+k is re-selected by cosine silhouette.
 
 Stable IDs: Hungarian matching between the previous and new clusters. Within one embedding
 generation the assignment runs on centroid cosine, and an assigned pair is rejected unless it also
@@ -116,6 +117,8 @@ class WindowClusterer:
         match_jaccard: float = 0.2,
         cross_generation_jaccard: float = 0.3,
         seed: int = 7,
+        first_id: int = 1,
+        fresh_fit_margin: float = 0.03,
     ) -> None:
         self.k_max = k_max
         self.min_points = min_points
@@ -129,7 +132,10 @@ class WindowClusterer:
         self.silhouette: dict[int, float] = {}
         self._centers: np.ndarray | None = None
         self._centers_generation: int | None = None
-        self._next_id = 1
+        # Seeded from the store in compose so IDs stay unique across pipeline restarts.
+        self._next_id = first_id
+        self.fresh_fit_margin = fresh_fit_margin
+        self.fresh_fit_wins = 0
 
     def _new_id(self) -> str:
         cid = f"c{self._next_id:05d}"
@@ -175,10 +181,13 @@ class WindowClusterer:
                         warnings.simplefilter("ignore")
                         km = _kmeans(k, self.seed).fit(X)
                         if warm:
-                            # The warm start keeps centers steady between ticks, but it can also
-                            # keep a bad split alive; keep whichever fit has the lower inertia.
+                            # The warm start keeps centers (and so IDs, EMA and novelty) steady
+                            # between ticks, but it can also keep a bad split alive. Switch to
+                            # the fresh fit only when it is clearly better.
                             warm_km = _kmeans(k, self.seed, self._centers).fit(X)
-                            if warm_km.inertia_ <= km.inertia_ + 1e-9:
+                            if km.inertia_ <= (1 - self.fresh_fit_margin) * warm_km.inertia_:
+                                self.fresh_fit_wins += 1
+                            else:
                                 km = warm_km
                     labels, centers = km.labels_, km.cluster_centers_
             self.k = k

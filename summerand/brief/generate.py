@@ -121,14 +121,16 @@ class BriefResult:
 class Briefer:
     def __init__(self, llm: LLM | None = None) -> None:
         self.llm = llm
-        self._cache: dict[tuple[str, str], BriefResult] = {}
+        self._cache: dict[tuple[str, str, bool], BriefResult] = {}
         self.llm_calls = 0
         self.llm_rejected = 0
 
-    async def _write(self, system: str, items: list[dict], facts: list[str], k: int) -> BriefResult:
+    async def _write(
+        self, system: str, items: list[dict], facts: list[str], k: int, use_llm: bool = True
+    ) -> BriefResult:
         source_text = render_items(items, facts)
         problems: list[str] = []
-        if self.llm is not None:
+        if self.llm is not None and use_llm:
             self.llm_calls += 1
             try:
                 draft = await self.llm.complete(system, source_text)
@@ -147,12 +149,21 @@ class Briefer:
         return BriefResult(text, "extractive", problems)
 
     async def cluster_brief(
-        self, cluster_id: str, member_ids: list[str], items: list[dict], facts: list[str]
+        self,
+        cluster_id: str,
+        member_ids: list[str],
+        items: list[dict],
+        facts: list[str],
+        use_llm: bool = True,
     ) -> BriefResult:
-        key = (cluster_id, membership_hash(member_ids))
+        # Keyed on whether the LLM was allowed, so an extractive brief written while catching up
+        # doesn't stick once the pipeline is live.
+        key = (cluster_id, membership_hash(member_ids), use_llm and self.llm is not None)
         if key not in self._cache:
-            self._cache[key] = await self._write(SYSTEM, items, facts, k=3)
+            self._cache[key] = await self._write(SYSTEM, items, facts, k=3, use_llm=use_llm)
         return self._cache[key]
 
-    async def market_brief(self, items: list[dict], facts: list[str]) -> BriefResult:
-        return await self._write(MARKET_SYSTEM, items, facts, k=4)
+    async def market_brief(
+        self, items: list[dict], facts: list[str], use_llm: bool = True
+    ) -> BriefResult:
+        return await self._write(MARKET_SYSTEM, items, facts, k=4, use_llm=use_llm)

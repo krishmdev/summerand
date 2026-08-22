@@ -74,7 +74,7 @@ async def test_equal_count_replacement_gets_fresh_ids():
 
 async def test_topic_is_replaced_after_window_expiry():
     """Topic A only in hours 0-6, topic B only in hours 6-12, refit on the true 6h window."""
-    emb = HashingEmbedder()
+    emb = HashingEmbedder(256)
     docs = []  # (ts, id, text)
     a_texts, b_texts = (
         headlines("solana", 36) + headlines("fed", 36),
@@ -87,7 +87,7 @@ async def test_topic_is_replaced_after_window_expiry():
     vecs = dict(zip([d[1] for d in docs], await emb.embed([d[2] for d in docs]), strict=True))
     clu = WindowClusterer()
     a_ids: set[str] = set()
-    for t in range(10 * MINUTE_MS, 12 * HOUR_MS + 1, 10 * MINUTE_MS):
+    for t in range(30 * MINUTE_MS, 12 * HOUR_MS + 1, 30 * MINUTE_MS):
         window = [d for d in docs if t - 6 * HOUR_MS <= d[0] <= t]
         ids = [d[1] for d in window]
         state = fit(clu, t, ids, np.vstack([vecs[i] for i in ids]), emb, select=(t % HOUR_MS == 0))

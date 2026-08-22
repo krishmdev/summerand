@@ -10,8 +10,17 @@ from summerand.stack import build_stack, run_replay
 from tests.conftest import ROOT
 
 
-@pytest.fixture
-def replayed(settings):
+@pytest.fixture(scope="module")
+def replayed(tmp_path_factory):
+    from summerand.config import Settings
+
+    db = tmp_path_factory.mktemp("api") / "api.sqlite"
+    settings = Settings(
+        _env_file=None,
+        database_url=f"sqlite:///{db}",
+        summerand_embedder="hashing",
+        summerand_llm="off",
+    )
     stack = build_stack(settings, chain=[HashingEmbedder()], llm=None)
     asyncio.run(run_replay(stack, ROOT / "fixtures/tiny_feed.jsonl", None))
     return stack

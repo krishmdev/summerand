@@ -98,9 +98,15 @@ class Hub:
     async def heartbeat(self, interval: float = HEARTBEAT_S) -> None:
         while True:
             await asyncio.sleep(interval)
+            # ts_ms is the as-of event time of the data; wall_ms is only for liveness.
             event_ms = None
             if self._event_clock is not None and self._event_clock.started:
                 event_ms = self._event_clock.now_ms()
+            else:
+                snap = self.latest.get("snapshot")
+                if snap is None and self.fallback_snapshot is not None:
+                    snap = self.fallback_snapshot()
+                event_ms = snap["ts_ms"] if snap else None
             self.broadcast(
                 {"type": "heartbeat", "ts_ms": event_ms, "wall_ms": time.time_ns() // 1_000_000}
             )

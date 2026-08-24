@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Summerand settings</title>
+  <link rel="stylesheet" href="sidepanel.css">
+  <style>
+    body { max-width: 520px; margin: 32px auto; padding: 0 16px; }
+    form { display: grid; gap: 16px; margin-top: 16px; }
+    label { display: grid; gap: 6px; font: var(--fs-s)/1.3 var(--mono); color: var(--text-secondary); }
+    input[type="url"] { font: var(--fs-m) var(--mono); color: var(--text-primary); background: var(--surface-1);
+      border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 8px 10px; }
+    .check { display: flex; gap: 8px; align-items: center; }
+    .hint { margin: 0; font: var(--fs-xs)/1.5 var(--mono); color: var(--text-muted); }
+    #saved { font: var(--fs-s) var(--mono); color: var(--text-secondary); min-height: 1em; }
+  </style>
+</head>
+<body>
+  <h1 class="wordmark"><span class="wordmark-name">Summerand</span><span class="wordmark-tag">settings</span></h1>
+  <form id="form">
+    <label>Server URL
+      <input type="url" id="serverUrl" required placeholder="http://127.0.0.1:8000">
+    </label>
+    <p class="hint">The panel connects to this server's /ws/stream. Local addresses work out of the box; for another host, grant it access when Chrome asks.</p>
+    <label class="check"><input type="checkbox" id="highlight"> Highlight tickers on pages I visit</label>
+    <p class="hint">Highlighting runs in the page, reads only text, and sends nothing anywhere. It applies on the next page load.</p>
+    <div><button class="btn" type="submit">Save</button> <span id="saved" role="status"></span></div>
+  </form>
+  <script src="options.js"></script>
+</body>
+</html>

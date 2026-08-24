@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Summerand</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-row">
+      <h1 class="wordmark"><span class="wordmark-name">Summerand</span><span class="wordmark-tag">markets</span></h1>
+      <p class="conn" id="conn" role="status" aria-live="polite" data-state="connecting">
+        <span class="conn-dot" aria-hidden="true"></span><span class="conn-text">Connecting</span>
+      </p>
+    </div>
+    <div class="masthead-row sub">
+      <p class="asof" id="asof">Waiting for the first ranking</p>
+      <div class="filters">
+        <button type="button" class="toggle" id="onpage" aria-pressed="false" title="Show only stories whose tickers appear on the current tab">On this page</button>
+        <span id="activeFilter"></span>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" aria-busy="true">
+    <div id="banner"></div>
+    <section class="brief" id="marketBrief" aria-labelledby="briefTitle" hidden>
+      <h2 class="eyebrow" id="briefTitle">Market brief</h2>
+      <p class="brief-body" id="briefBody"></p>
+      <p class="brief-why" id="briefWhy"></p>
+      <p class="brief-meta" id="briefMeta"></p>
+    </section>
+    <div class="legend" id="legend" aria-label="Score components"></div>
+    <ol class="stories" id="stories" aria-label="Ranked stories"></ol>
+    <div id="state"></div>
+  </main>
+
+  <footer class="foot">
+    <a href="options.html" target="_blank" id="settingsLink">Settings</a>
+    <span id="server"></span>
+  </footer>
+
+  <script src="shared/watchlist.default.js"></script>
+  <script src="shared/tickers.js"></script>
+  <script src="shared/view.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

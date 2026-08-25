@@ -489,6 +489,10 @@ async def run_pipeline(
             if live:
                 for t in inputs:
                     quiet = now - (arrived[t] or started) > idle_after_s
+                    # Safe to move the watermark: nothing from t is waiting in our queue or on
+                    # the broker, so no un-offered event can fall behind it. Events already
+                    # offered sit in the driver's heap and are released in (ts, seq) order, so
+                    # they need no clamp.
                     if quiet and pending[t] == 0 and await caught_up(t):
                         await driver.advance_idle(t, wall_ms() - lateness_ms)
     finally:

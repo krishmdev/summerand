@@ -1,30 +1,27 @@
-###############  build  ################
-FROM python:3.11-slim AS build
-WORKDIR /app
-COPY pyproject.toml .
-RUN pip install --upgrade pip && pip install -e .
-
-################  runtime  ################
+# One image for every service; compose picks the command.
 FROM python:3.11-slim
+
+COPY --from=ghcr.io/astral-sh/uv:0.9.28 /uv /usr/local/bin/uv
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH=/opt/venv/bin:$PATH \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /app
-COPY --from=build /usr/local /usr/local
+# "--extra pg" by default. Add "--extra local" for MiniLM embeddings (pulls in torch, and needs
+# .models/ mounted; see README).
+ARG EXTRAS="--extra pg"
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-dev --no-install-project $EXTRAS
+
 COPY summerand/ summerand/
+COPY config/ config/
+COPY fixtures/ fixtures/
+COPY models.lock ./
+RUN uv sync --frozen --no-dev $EXTRAS
 
-# if folder = summerand/
-COPY summerand/ summerand/
-CMD ["python", "-m", "summerand"]
-
-######## rss-ingest ########
-FROM python:3.11-slim AS rss-ingest
-WORKDIR /app
-RUN pip install --no-cache-dir aiohttp feedparser aiokafka bloom-filter2
-COPY summerand/ingest/rss_spider.py .
-CMD ["python", "rss_spider.py"]
-
-
-######## md-equity ########
-FROM python:3.11-slim AS md-equity
-WORKDIR /app
-RUN pip install --no-cache-dir aiokafka websockets
-COPY summerand/api/polygon_scraper.py .
-CMD ["python", "polygon_scraper.py"]
+RUN useradd --create-home app && mkdir -p /app/var && chown app /app/var
+USER app
+EXPOSE 8000
+CMD ["summerand", "api", "--host", "0.0.0.0"]

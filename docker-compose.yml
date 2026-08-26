@@ -1,44 +1,187 @@
+# Live mode:      docker compose up -d --build
+# Kafka replay:   docker compose --profile demo-kafka up -d --build replay etl-demo pipeline-demo api-demo
+# Offline check:  docker compose -f docker-compose.yml -f compose.offline.yml --profile demo-kafka \
+#                   up --build --abort-on-container-exit --exit-code-from smoke smoke
+# Optional feeds: --profile equities (Polygon WebSocket), --profile cryptopanic
+
+x-app: &app
+  build:
+    context: .
+    args:
+      EXTRAS: ${SUMMERAND_EXTRAS:---extra pg}
+  restart: unless-stopped
+  networks: [backend]
+  environment: &env
+    KAFKA_BROKER: redpanda:9092
+    DATABASE_URL: postgresql+psycopg://summerand:summerand@postgres:5432/summerand
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    SUMMERAND_EMBEDDER: ${SUMMERAND_EMBEDDER:-auto}
+    SUMMERAND_LLM: ${SUMMERAND_LLM:-auto}
+    SUMMERAND_EGRESS_CHECK: ${SUMMERAND_EGRESS_CHECK:-off}
+    HF_HUB_OFFLINE: "1"
+  volumes:
+    - ./.models:/app/.models:ro
+  depends_on:
+    topics:
+      condition: service_completed_successfully
+
+x-demo: &demo
+  <<: *app
+  restart: "no"
+  environment:
+    <<: *env
+    SUMMERAND_TOPIC_PREFIX: demo.
+    DATABASE_URL: postgresql+psycopg://summerand:summerand@postgres:5432/summerand_demo
+  profiles: [demo-kafka]
+
 services:
-  app:
-    build: .
-    container_name: summerand_markets
-    volumes:
-      - .:/app      # hot-reload convenience
-    command: python -m summerand
   redpanda:
-    image: redpandadata/redpanda:latest
+    image: redpandadata/redpanda:v26.2.3
     command:
       - redpanda
       - start
-      - --overprovisioned
-      - --smp
-      - "1"
-      - --memory
-      - 1G
-      - --reserve-memory
-      - 0M
-      - --node-id
-      - "0"
-      - --check=false
-      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
-      - --advertise-kafka-addr=redpanda:9092
+      - --mode=dev-container
+      - --smp=1
+      - --memory=1G
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      # Containers use redpanda:9092; the host uses localhost:19092.
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
     ports:
-      - "9092:9092"
-      - "9644:9644"
-  rss_ingest:
-    build:
-      context: .
-      target: rss-ingest
-    depends_on: [redpanda]
-    environment:
-      - KAFKA_BROKER=${KAFKA_BROKER}
-      - CRYPTOPANIC_TOKEN=${CRYPTOPANIC_TOKEN}
+      - "127.0.0.1:${SUMMERAND_KAFKA_PORT:-19092}:19092"
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
-  polygon_scraper:
-    build:
-      context: .
-      target: md-equity
-    depends_on: [redpanda]
+  topics:
+    image: redpandadata/redpanda:v26.2.3
+    networks: [backend]
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    # One partition per topic keeps per-topic order, which the event-time driver relies on.
+    # Retention bounds what a restarted pipeline replays: news 26h, prices 7h.
+    command:
+      - |
+        set -e
+        mk() { rpk topic create "$$1" -X brokers=redpanda:9092 -p 1 -c retention.ms="$$2" 2>&1 | grep -v TOPIC_ALREADY_EXISTS || true; }
+        for p in "" "demo."; do
+          mk "$${p}raw_news" 93600000
+          mk "$${p}clean_news" 93600000
+          mk "$${p}bars" 93600000
+          mk "$${p}ticks_crypto" 25200000
+          mk "$${p}ticks_equity" 25200000
+          mk "$${p}ranked_stories" 3600000
+          mk "$${p}briefs" 93600000
+        done
+        rpk topic list -X brokers=redpanda:9092
+
+  postgres:
+    image: postgres:16
     environment:
-      - KAFKA_BROKER=${KAFKA_BROKER}
-      - POLYGON_API_KEY=${POLYGON_API_KEY}
+      POSTGRES_USER: summerand
+      POSTGRES_PASSWORD: summerand
+      POSTGRES_DB: summerand
+    ports:
+      - "127.0.0.1:${SUMMERAND_PG_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U summerand"]
+      interval: 5s
+      retries: 20
+
+  # live pipeline -------------------------------------------------------------------------------
+  ingest-rss:
+    <<: *app
+    command: ["summerand", "ingest", "rss"]
+  ingest-coinbase:
+    <<: *app
+    command: ["summerand", "ingest", "coinbase"]
+  ingest-polygon:
+    <<: *app
+    command: ["summerand", "ingest", "polygon"]
+    environment:
+      <<: *env
+      POLYGON_API_KEY: ${POLYGON_API_KEY:-}
+    profiles: [equities]
+  ingest-cryptopanic:
+    <<: *app
+    command: ["summerand", "ingest", "cryptopanic"]
+    environment:
+      <<: *env
+      CRYPTOPANIC_TOKEN: ${CRYPTOPANIC_TOKEN:-}
+      CRYPTOPANIC_URL: ${CRYPTOPANIC_URL:-}
+    profiles: [cryptopanic]
+  etl:
+    <<: *app
+    command: ["summerand", "etl"]
+  pipeline:
+    <<: *app
+    command: ["summerand", "pipeline", "--live"]
+    depends_on:
+      topics:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+  api:
+    <<: *app
+    command: ["summerand", "api", "--host", "0.0.0.0"]
+    ports:
+      - "127.0.0.1:${SUMMERAND_API_PORT:-8000}:8000"
+    depends_on:
+      topics:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  # replay of the recorded fixture through Kafka (topics prefixed "demo.") ------------------------
+  replay:
+    <<: *demo
+    command: ["summerand", "replay", "--speed", "${SUMMERAND_REPLAY_SPEED:-300}"]
+  etl-demo:
+    <<: *demo
+    command: ["summerand", "etl", "--once"]
+  pipeline-demo:
+    <<: *demo
+    command: ["summerand", "pipeline", "--replay"]
+    depends_on:
+      topics:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+  api-demo:
+    <<: *demo
+    restart: unless-stopped
+    command: ["summerand", "api", "--host", "0.0.0.0"]
+    ports:
+      - "127.0.0.1:${SUMMERAND_DEMO_API_PORT:-8001}:8000"
+    depends_on:
+      topics:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+  smoke:
+    <<: *demo
+    # Waits for the replay to finish, then checks REST + WebSocket from inside the network.
+    command: ["summerand", "smoke", "--base", "http://api-demo:8000", "--wait", "600"]
+    depends_on:
+      api-demo:
+        condition: service_started
+      replay:
+        condition: service_completed_successfully
+      etl-demo:
+        condition: service_completed_successfully
+      pipeline-demo:
+        condition: service_completed_successfully
+
+networks:
+  backend: {}
+
+volumes:
+  pgdata: {}

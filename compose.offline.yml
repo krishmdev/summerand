@@ -1,0 +1,19 @@
+# Offline override: no container can reach the internet, and every Summerand process runs the
+# egress canary at startup (and exits if it can connect out). Host ports are not published on an
+# internal network, so the smoke service checks the API from inside.
+x-offline-env: &offline
+  SUMMERAND_EGRESS_CHECK: require-blocked
+  SUMMERAND_EMBEDDER: hashing
+  SUMMERAND_LLM: "off"
+  OPENAI_API_KEY: ""
+
+services:
+  replay: {environment: *offline}
+  etl-demo: {environment: *offline}
+  pipeline-demo: {environment: *offline}
+  api-demo: {environment: *offline}
+  smoke: {environment: *offline}
+
+networks:
+  backend:
+    internal: true

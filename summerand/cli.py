@@ -446,11 +446,30 @@ def replay(fixture: Path = DEFAULT_FIXTURE, speed: float = 300.0) -> None:
 
 
 @app.command()
-def smoke(base: str = "http://127.0.0.1:8000") -> None:
+def smoke(
+    base: str = "http://127.0.0.1:8000",
+    wait: Annotated[float, typer.Option(help="seconds to wait for a first ranking")] = 0,
+) -> None:
     """Check a running server's REST + WebSocket endpoints."""
-    settings = _setup("smoke")
-    del settings
-    print(json.dumps(asyncio.run(smoke_check(base))))
+    _setup("smoke")
+
+    async def run() -> dict[str, object]:
+        import httpx
+
+        deadline = time.monotonic() + wait
+        while True:
+            try:
+                async with httpx.AsyncClient(base_url=base, timeout=5) as client:
+                    if (await client.get("/healthz")).json().get("event_ms"):
+                        break
+            except (httpx.HTTPError, ValueError):
+                pass
+            if time.monotonic() > deadline:
+                break
+            await asyncio.sleep(2)
+        return await smoke_check(base)
+
+    print(json.dumps(asyncio.run(run())))
 
 
 @app.command("egress-check")

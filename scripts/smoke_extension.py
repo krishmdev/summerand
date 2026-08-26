@@ -40,18 +40,17 @@ ARTICLE = """<!doctype html><html><head><meta charset="utf-8"><title>Test articl
 def wait_http(url: str, timeout: float = 240) -> dict:
     deadline = time.time() + timeout
     while time.time() < deadline:
-        with contextlib.suppress(OSError, ValueError):
-            with urllib.request.urlopen(url, timeout=2) as r:
-                data = json.loads(r.read())
-                if data.get("replay", {}).get("done"):
-                    return data
+        with contextlib.suppress(OSError, ValueError), urllib.request.urlopen(url, timeout=2) as r:
+            data = json.loads(r.read())
+            if data.get("replay", {}).get("done"):
+                return data
         time.sleep(1)
     raise TimeoutError(url)
 
 
 def serve_article(port: int) -> http.server.ThreadingHTTPServer:
     class Handler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):  # noqa: N802
+        def do_GET(self):
             body = ARTICLE.encode()
             self.send_response(200)
             self.send_header("content-type", "text/html; charset=utf-8")

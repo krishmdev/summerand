@@ -1,0 +1,43 @@
+{
+  "fixture": "demo_feed.jsonl.gz",
+  "fixture_sha256": "b0ddfee266efbbaeaa6554949927e90e86deabfd4b5511faed0399bc6dcd569b",
+  "evaluation_script_sha256": "55054dfdeed22f1b2e3a8a73e2654fec732a09bb9699bccc5df252b43c7cea50",
+  "embedder": "local/all-MiniLM-L6-v2/1110a243fdf4/384/668b29a0",
+  "horizon_min": 60,
+  "stride_min": 10,
+  "snapshots_with_priced_candidates": 133,
+  "snapshots_evaluated": 7,
+  "candidates": 287,
+  "positive_candidates": 7,
+  "positive_rate": 0.0244,
+  "positive_snapshot_candidate_counts": [
+    1,
+    1,
+    1,
+    1,
+    4,
+    2,
+    1
+  ],
+  "snapshots_where_p5_can_vary_by_order": 0,
+  "snapshots_where_ndcg10_can_vary_by_order": 2,
+  "metrics": {
+    "impact": {
+      "p@5": 0.8214,
+      "ndcg@10": 0.8758
+    },
+    "recency": {
+      "p@5": 0.8214,
+      "ndcg@10": 0.9286
+    },
+    "size": {
+      "p@5": 0.8214,
+      "ndcg@10": 0.9473
+    },
+    "random": {
+      "p@5": 0.8214,
+      "ndcg@10": 0.9191
+    }
+  },
+  "git_commit": "2d1325c"
+}

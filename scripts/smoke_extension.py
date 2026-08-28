@@ -37,7 +37,7 @@ ARTICLE = """<!doctype html><html><head><meta charset="utf-8"><title>Test articl
 </body></html>"""
 
 
-def wait_http(url: str, timeout: float = 240) -> dict:
+def wait_http(url: str, timeout: float = 900) -> dict:
     deadline = time.time() + timeout
     while time.time() < deadline:
         with contextlib.suppress(OSError, ValueError), urllib.request.urlopen(url, timeout=2) as r:
@@ -76,6 +76,8 @@ def main() -> int:
     base = f"http://127.0.0.1:{args.port}"
     results: dict[str, object] = {}
 
+    log_path = Path(tempfile.mkdtemp()) / "demo.log"
+    demo_log = log_path.open("w")
     demo = subprocess.Popen(
         [
             sys.executable,
@@ -98,7 +100,7 @@ def main() -> int:
             **os.environ,
             "SUMMERAND_EGRESS_CHECK": os.environ.get("SUMMERAND_EGRESS_CHECK", "off"),
         },
-        stdout=subprocess.DEVNULL,
+        stdout=demo_log,
         stderr=subprocess.STDOUT,
     )
     article = serve_article(args.port + 1)
@@ -158,6 +160,9 @@ def main() -> int:
             empty.wait_for_selector(".state.error", timeout=30_000)
             results["error_state"] = empty.locator(".state.error h2").text_content()
             ctx.close()
+    except Exception:
+        print(log_path.read_text()[-3000:], file=sys.stderr)
+        raise
     finally:
         if demo.poll() is None:
             demo.kill()

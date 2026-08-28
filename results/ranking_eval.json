@@ -39,5 +39,33 @@
       "ndcg@10": 0.9191
     }
   },
-  "git_commit": "2d1325c"
+  "git_commit": "15d1b60",
+  "run_manifest": {
+    "recorded_at": "2026-08-30T08:16:29-0400",
+    "host": {
+      "chip": "Apple M1 Pro",
+      "ram_gb": 16.0,
+      "os": "Darwin 26.5.1",
+      "python": "3.11.13",
+      "power": "Now drawing from 'AC Power'"
+    },
+    "exclusive_compute": {
+      "held": false
+    },
+    "load": {
+      "loadavg": [
+        "26.28",
+        "16.87",
+        "11.83"
+      ],
+      "cpu_usage": "CPU usage: 67.36% user, 30.28% sys, 2.34% idle",
+      "docker_containers_running": 6,
+      "swap": "total = 9216.00M  used = 8358.00M  free = 858.00M  (encrypted)"
+    },
+    "extra": {
+      "script": "ranking_eval",
+      "embedder": "local/all-MiniLM-L6-v2/1110a243fdf4/384/668b29a0",
+      "device": "cpu"
+    }
+  }
 }

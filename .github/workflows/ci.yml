@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.28"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: uv sync --frozen
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen ruff format --check .
+      # pytest-socket (see pyproject) blocks everything except localhost during the suite.
+      - run: uv run --frozen pytest --cov=summerand --cov-report=term
+      - run: node --test extension/tests/*.test.mjs
+      # Companion to the offline job: the canary must actually connect when nothing blocks it.
+      - run: uv run --frozen summerand egress-check --expect open
+
+  offline-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t summerand:ci .
+      # Loopback only: the demo replays the fixture, serves on 127.0.0.1, checks its own REST and
+      # WebSocket endpoints, and the canary must see every external connect fail.
+      - run: docker run --rm --network none summerand:ci summerand egress-check --expect blocked
+      - run: >
+          docker run --rm --network none -e SUMMERAND_EGRESS_CHECK=require-blocked
+          summerand:ci summerand demo --speed 0 --smoke --embedder hashing --llm off
+          --fixture fixtures/tiny_feed.jsonl

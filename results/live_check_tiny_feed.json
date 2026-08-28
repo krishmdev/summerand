@@ -1,0 +1,68 @@
+{
+  "date": "2026-08-30",
+  "fixture": "tiny_feed.jsonl",
+  "embedder_id": "local/all-MiniLM-L6-v2/1110a243fdf4/384/668b29a0",
+  "generation": 2,
+  "embedded_in_window": 30,
+  "brief_model": "gpt-4.1-mini",
+  "seconds": 47.2,
+  "status": {
+    "event_ms": 1789998600000,
+    "generation": 2,
+    "embedder_id": "local/all-MiniLM-L6-v2/1110a243fdf4/384/668b29a0",
+    "degraded": false,
+    "window_size": 30,
+    "clusters": 3,
+    "k": 3,
+    "late_dropped": {},
+    "jobs_fired": {
+      "rank": 128,
+      "recluster": 64,
+      "brief": 13
+    },
+    "news": 30,
+    "bars": 195,
+    "ticks": 0,
+    "stale_snapshots": 4,
+    "regenerations": 1
+  },
+  "silhouette_last_selection": {
+    "2": 0.3598,
+    "3": 0.556,
+    "4": 0.4317,
+    "5": 0.2609,
+    "6": 0.2532,
+    "7": 0.1881,
+    "8": 0.251,
+    "9": 0.2345
+  },
+  "briefs_by_method": {
+    "extractive": 19
+  },
+  "llm_calls": 19,
+  "llm_rejected": 0,
+  "rejection_reasons": [
+    "llm error: RateLimitError"
+  ],
+  "top_stories": [
+    {
+      "rank": 1,
+      "label": "nvidia, earnings, beat",
+      "size": 9,
+      "score": 0.871147
+    },
+    {
+      "rank": 2,
+      "label": "staking, etf, ether",
+      "size": 10,
+      "score": 0.857527
+    },
+    {
+      "rank": 3,
+      "label": "solana, outage, client",
+      "size": 11,
+      "score": 0.837108
+    }
+  ],
+  "sample_llm_briefs": []
+}

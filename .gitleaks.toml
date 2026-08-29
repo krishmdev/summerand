@@ -1,0 +1,8 @@
+# Default rules, plus one exception: models.lock lists sha256 digests of model files, and the
+# generic-api-key rule reads "tokenizer.json": "<hex>" as a token.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "model file digests"
+paths = ['''^models\.lock$''']

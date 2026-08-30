@@ -64,14 +64,22 @@
     }
   }
 
+  // Collect added nodes from every callback and scan them together after a short pause, so a
+  // burst of mutations costs one pass and nothing that arrives mid-wait is missed.
+  const added = new Set();
   let pending = null;
   const observer = new MutationObserver((records) => {
-    if (pending) return;
+    for (const r of records) {
+      for (const n of r.addedNodes) {
+        if (n.nodeType === Node.ELEMENT_NODE && !n.matches("mark.smr-ticker")) added.add(n);
+      }
+    }
+    if (pending || !added.size) return;
     pending = setTimeout(() => {
       pending = null;
-      for (const r of records) for (const n of r.addedNodes) {
-        if (n.nodeType === Node.ELEMENT_NODE && !(n instanceof HTMLElement && n.matches("mark.smr-ticker"))) scan(n);
-      }
+      const batch = [...added].filter((n) => n.isConnected);
+      added.clear();
+      for (const n of batch) scan(n);
     }, 500);
   });
 

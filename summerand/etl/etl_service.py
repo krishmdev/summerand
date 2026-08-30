@@ -73,8 +73,10 @@ def normalize(raw: RawNews, tickers: TickerExtractor) -> CleanNews | None:
 
 
 class Etl:
-    def __init__(self, watchlist: Watchlist) -> None:
+    def __init__(self, watchlist: Watchlist, title_noise: tuple[str, ...] = ()) -> None:
         self.tickers = TickerExtractor(watchlist)
+        self.noise = [re.compile(p) for p in title_noise]
+        self.dropped_noise = 0
         self.seen = BloomFilter()
         self.near = NearDuplicateIndex()
         self.dropped_exact = 0
@@ -83,6 +85,9 @@ class Etl:
     def process(self, raw: RawNews) -> CleanNews | None:
         item = normalize(raw, self.tickers)
         if item is None:
+            return None
+        if any(p.search(item.title) for p in self.noise):
+            self.dropped_noise += 1
             return None
         if item.id in self.seen:
             self.dropped_exact += 1

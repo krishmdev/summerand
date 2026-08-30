@@ -60,3 +60,11 @@ cryptopanic:
   credibility: 0.50
 
 default_credibility: 0.50
+
+# Templated posts that say nothing new (one outlet publishes dozens of them a day, which would
+# otherwise dominate velocity). Titles matching any of these regexes are dropped by the ETL.
+title_noise:
+  - '\bEarnings Preview$'
+  - '\bPrice Prediction\b'
+  - '^(Stock|Crypto) Market Today:'
+

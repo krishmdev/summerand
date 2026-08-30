@@ -69,6 +69,7 @@ class SourcesConfig:
     cryptopanic_poll_seconds: int = 120
     cryptopanic_credibility: float = 0.5
     default_credibility: float = 0.5
+    title_noise: tuple[str, ...] = ()
 
     def credibility(self, source: str) -> float:
         if source == "cryptopanic" or source.startswith("cryptopanic:"):
@@ -102,6 +103,7 @@ def load_sources(path: Path) -> SourcesConfig:
         cryptopanic_poll_seconds=int(cp.get("poll_seconds", 120)),
         cryptopanic_credibility=float(cp.get("credibility", 0.5)),
         default_credibility=float(data.get("default_credibility", 0.5)),
+        title_noise=tuple(data.get("title_noise", [])),
     )
 
 

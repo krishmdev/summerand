@@ -86,3 +86,16 @@ async def test_run_etl_forwards_watermarks(watchlist):
     await bus.close()
     kinds = [m["kind"] async for m in out]
     assert kinds == ["news", "watermark", "eos"]
+
+
+def test_templated_titles_are_dropped(watchlist):
+    from summerand.config import load_sources
+    from tests.conftest import ROOT
+
+    etl = Etl(watchlist, load_sources(ROOT / "config/sources.yaml").title_noise)
+    assert etl.process(raw("https://x.com/p", "Paychex Q1 2027 Earnings Preview")) is None
+    assert (
+        etl.process(raw("https://x.com/q", "Algorand (ALGO) Price Prediction: 2026, 2030")) is None
+    )
+    assert etl.process(raw("https://x.com/r", "Paychex earnings beat, shares rise")) is not None
+    assert etl.dropped_noise == 2

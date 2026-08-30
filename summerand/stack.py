@@ -78,7 +78,9 @@ def build_stack(
         live=live,
     )
     log.info("embedder chain: %s", " -> ".join(e.id for e in chain))
-    return Stack(settings, bus, store, pipeline, Etl(settings.watchlist))
+    return Stack(
+        settings, bus, store, pipeline, Etl(settings.watchlist, settings.sources.title_noise)
+    )
 
 
 async def run_replay(stack: Stack, fixture: Path, speed: float | None) -> EventTimeDriver:

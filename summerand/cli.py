@@ -368,7 +368,7 @@ def etl(
         from summerand.etl.etl_service import Etl, run_etl
 
         bus = await _kafka(settings)
-        await run_etl(bus, Etl(settings.watchlist), stop_on_eos=once)
+        await run_etl(bus, Etl(settings.watchlist, settings.sources.title_noise), stop_on_eos=once)
         await bus.close()
 
     asyncio.run(run())

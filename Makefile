@@ -61,7 +61,7 @@ compose-offline:  ## the Kafka replay on an internal network, egress canaries on
 	docker compose -f docker-compose.yml -f compose.offline.yml --profile demo-kafka down -v
 
 compose-down:
-	docker compose --profile demo-kafka --profile equities --profile cryptopanic down -v
+	docker compose --profile demo-kafka --profile cryptopanic down -v
 
 eval:             ## ranking evaluation on the demo fixture
 	$(RUN) python scripts/ranking_eval.py

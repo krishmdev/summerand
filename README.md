@@ -103,7 +103,7 @@ an extractive brief: maximal-marginal-relevance picks of the articles' own sente
 
 ```sh
 make compose-up            # Redpanda, Postgres, RSS + Coinbase ingest, ETL, pipeline, API
-docker compose --profile equities up -d ingest-polygon      # needs a Polygon plan with WebSockets
+docker compose --profile cryptopanic up -d ingest-cryptopanic   # optional, needs a token
 make compose-demo          # the fixture replayed through Kafka instead of live feeds
 make compose-offline       # the same replay on an internal-only network, checked from inside
 ```

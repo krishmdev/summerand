@@ -2,7 +2,9 @@
 # Kafka replay:   docker compose --profile demo-kafka up -d --build replay etl-demo pipeline-demo api-demo
 # Offline check:  docker compose -f docker-compose.yml -f compose.offline.yml --profile demo-kafka \
 #                   up --build --abort-on-container-exit --exit-code-from smoke smoke
-# Optional feeds: --profile equities (Polygon WebSocket), --profile cryptopanic
+# Optional feed: --profile cryptopanic. Equities come from Polygon REST minute bars in the recorded
+# fixture; the Polygon WebSocket client (`summerand ingest polygon`) needs a paid plan and is not
+# wired into compose.
 
 x-app: &app
   build:
@@ -103,16 +105,11 @@ services:
   ingest-coinbase:
     <<: *app
     command: ["summerand", "ingest", "coinbase"]
-  ingest-polygon:
-    <<: *app
-    command: ["summerand", "ingest", "polygon"]
-    environment:
-      <<: *env
-      POLYGON_API_KEY: ${POLYGON_API_KEY:-}
-    profiles: [equities]
   ingest-cryptopanic:
     <<: *app
     command: ["summerand", "ingest", "cryptopanic"]
+    # Exits 0 with one log line when the token is missing or the endpoint rejects it.
+    restart: on-failure:3
     environment:
       <<: *env
       CRYPTOPANIC_TOKEN: ${CRYPTOPANIC_TOKEN:-}

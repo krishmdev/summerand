@@ -1,9 +1,8 @@
 """Polygon stocks trade stream -> ticks_equity.
 
-Fixes from sprint-1: trade `t` is Unix milliseconds (it was divided by 1e9, which put every trade
-in January 1970); the stream now waits for `auth_success` instead of ignoring status messages, and
-reconnects with backoff. Polygon's free plan has no stocks WebSocket, so this service is optional.
-"""
+Trade `t` is Unix milliseconds. The client waits for `auth_success` before subscribing, treats an
+auth or plan rejection as permanent, and reconnects with backoff otherwise. Polygon's free plan
+has no stocks WebSocket, so this service is optional and not part of the default compose stack."""
 
 from __future__ import annotations
 
@@ -18,6 +17,7 @@ import websockets
 
 from summerand.bus import Bus
 from summerand.bus import topics as T
+from summerand.ingest.errors import PermanentFeedError
 from summerand.schemas import Envelope, Tick
 
 log = logging.getLogger(__name__)
@@ -25,8 +25,8 @@ log = logging.getLogger(__name__)
 DEFAULT_SYMBOLS = ["AAPL", "MSFT", "NVDA", "META", "COIN"]
 
 
-class PolygonAuthError(RuntimeError):
-    pass
+class PolygonAuthError(PermanentFeedError):
+    """Bad key, or a plan without WebSocket access (the free plan)."""
 
 
 def parse_polygon(raw: str | bytes) -> tuple[list[Tick], list[dict[str, Any]]]:

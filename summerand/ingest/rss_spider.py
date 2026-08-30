@@ -1,8 +1,8 @@
 """Poll RSS feeds and publish new items to raw_news.
 
-Sprint-1 published every entry on every poll with the ingest time as `ts` and sha256(title) as the
-id. Now: the id is sha256 of the canonical URL, the publish time comes from the feed, only items not
-seen before on that feed go out, summaries are included, and conditional GETs skip unchanged feeds.
+Each item's id is sha256 of its canonical URL and its publish time comes from the feed. Only items
+not seen before on that feed are published, with their summaries, and conditional GETs (ETag /
+Last-Modified) skip unchanged feeds. A feed that errors is backed off exponentially.
 """
 
 from __future__ import annotations
@@ -127,7 +127,15 @@ class RssSpider:
         return [item for batch in batches for item in batch]
 
 
+# Watermarks trail the poll by a minute so an item from another raw_news producer (CryptoPanic)
+# observed just before our poll ended isn't behind them.
+WATERMARK_MARGIN_MS = 60_000
+
+
 async def run_rss(bus: Bus, spider: RssSpider, poll_seconds: int) -> None:
+    """Publish new items, then a watermark. The pipeline advances clean_news only from these
+    watermarks (forwarded by the ETL), never from wall time, so a stalled ETL delays news
+    instead of turning its backlog into late events."""
     seq = itertools.count()
     while True:
         items = await spider.poll_once()
@@ -136,6 +144,8 @@ async def run_rss(bus: Bus, spider: RssSpider, poll_seconds: int) -> None:
                 kind="news", ts_ms=item.observed_ms, seq=next(seq), data=item.model_dump()
             )
             await bus.publish(T.RAW_NEWS, env.model_dump(), key=item.id)
+        mark = spider.clock.now_ms() - WATERMARK_MARGIN_MS
+        await bus.publish(T.RAW_NEWS, Envelope(kind="watermark", ts_ms=mark).model_dump())
         if items:
             log.info("published %d new items", len(items))
         await asyncio.sleep(poll_seconds)

@@ -410,6 +410,7 @@ class Pipeline:
             "clusters": len(self.clusterer.state.clusters) if self.clusterer.state else 0,
             "k": self.clusterer.k,
             "late_dropped": dict(driver.late_dropped) if driver else {},
+            "llm": self.briefer.state,
             "jobs_fired": dict(self.scheduler.fired),
             **self.stats,
         }
@@ -429,6 +430,7 @@ async def run_pipeline(
     on_driver: Any = None,
     subs: dict[str, Any] | None = None,
     wall_ms: Any = None,
+    wall_advance: set[str] | None = None,
 ) -> EventTimeDriver:
     """Feed the pipeline from bus topics until every input has sent end-of-stream.
 
@@ -436,7 +438,12 @@ async def run_pipeline(
     from an old replay). An input counts as idle only when nothing from it is waiting in our
     queue, its subscription has caught up with the broker, and nothing has arrived for
     idle_after_s; then its watermark moves to wall time minus the lateness, so a quiet feed
-    doesn't stall event time. A backlog is never mistaken for silence."""
+    doesn't stall event time. A backlog is never mistaken for silence.
+
+    clean_news is excluded by default: its backlog can sit upstream in the ETL where we can't
+    see it, so it only advances from the watermarks the RSS ingester emits."""
+    if wall_advance is None:
+        wall_advance = {t for t in inputs if t != T.CLEAN_NEWS}
     wall_ms = wall_ms or (lambda: time.time_ns() // 1_000_000)
     driver = EventTimeDriver(
         pipeline.scheduler, pipeline.handle, inputs, lateness_ms, ignore_eos=live
@@ -487,7 +494,7 @@ async def run_pipeline(
                         "" if live else " (replay mode)",
                     )
             if live:
-                for t in inputs:
+                for t in (t for t in inputs if t in wall_advance):
                     quiet = now - (arrived[t] or started) > idle_after_s
                     # Safe to move the watermark: nothing from t is waiting in our queue or on
                     # the broker, so no un-offered event can fall behind it. Events already

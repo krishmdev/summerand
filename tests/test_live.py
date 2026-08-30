@@ -65,6 +65,7 @@ async def test_backlog_is_not_mistaken_for_an_idle_topic():
         done=lambda: sum(1 for t, _ in pipe.seen if t == "clean_news") == 5,
         subs=subs,
         idle_after_s=0.01,
+        wall_advance={"ticks_crypto", "clean_news"},
         poll_s=0.05,
     )
     assert dict(driver.late_dropped) == {}
@@ -86,6 +87,7 @@ async def test_live_mode_ignores_a_stale_end_of_stream():
         done=lambda: len(pipe.seen) == 2,
         subs=subs,
         idle_after_s=0.01,
+        wall_advance={"clean_news"},
         poll_s=0.05,
     )
     assert len(pipe.seen) == 2 and not driver.finished
@@ -195,3 +197,101 @@ async def test_heartbeat_reports_as_of_time_without_a_clock():
     msg = await asyncio.wait_for(c.queue.get(), 1)
     task.cancel()
     assert msg["type"] == "heartbeat" and msg["ts_ms"] == 123 and msg["wall_ms"] > 0
+
+
+async def test_stalled_etl_backlog_is_not_dropped():
+    """The ETL is down for 10 minutes of wall time while raw news piles up. Ticks keep flowing and
+    are wall-advanced; clean_news must not be, or the backlog would all be late."""
+    from summerand.bus import topics as T
+    from summerand.config import load_watchlist
+    from summerand.etl.dedup import article_id
+    from summerand.etl.etl_service import Etl, run_etl
+    from summerand.schemas import RawNews
+    from tests.conftest import ROOT
+
+    bus = InMemoryBus()
+    pipe = FakePipeline()
+    wall = [int(time.time() * 1000)]
+    start = wall[0] - 20 * MINUTE_MS
+    raw_sub = bus.subscribe(T.RAW_NEWS, "etl")
+    subs = {t: bus.subscribe(t) for t in (T.CLEAN_NEWS, T.TICKS_CRYPTO)}
+    for i in range(5):
+        url = f"https://x.example/{i}"
+        raw = RawNews(
+            id=article_id(url),
+            source="s",
+            title=f"Bitcoin story {i}",
+            url=url,
+            published_ms=start + i * 1000,
+            observed_ms=start + i * 1000,
+        )
+        await bus.publish(
+            T.RAW_NEWS,
+            Envelope(kind="news", ts_ms=raw.observed_ms, seq=i, data=raw.model_dump()).model_dump(),
+        )
+    await bus.publish(T.RAW_NEWS, Envelope(kind="watermark", ts_ms=start + 10_000).model_dump())
+    for i in range(20):
+        await bus.publish(
+            T.TICKS_CRYPTO, Envelope(kind="tick", ts_ms=start + i * MINUTE_MS, seq=i).model_dump()
+        )
+    box = {}
+    task = asyncio.create_task(
+        run_pipeline(
+            bus,
+            pipe,
+            [T.CLEAN_NEWS, T.TICKS_CRYPTO],
+            live=True,
+            subs=subs,
+            idle_after_s=0.01,
+            poll_s=0.02,
+            wall_ms=lambda: wall[0],
+            on_driver=lambda d: box.setdefault("d", d),
+        )
+    )
+    await asyncio.sleep(0.5)  # ETL "down": ticks are wall-advanced, news can't be
+    wall[0] += 10 * MINUTE_MS
+    await asyncio.sleep(0.3)
+    etl = asyncio.create_task(run_etl(bus, Etl(load_watchlist(ROOT / "config")), sub=raw_sub))
+    for _ in range(100):
+        if sum(1 for t, _ in pipe.seen if t == T.CLEAN_NEWS) == 5:
+            break
+        await asyncio.sleep(0.05)
+    task.cancel()
+    etl.cancel()
+    assert dict(box["d"].late_dropped) == {}
+    assert sum(1 for t, _ in pipe.seen if t == T.CLEAN_NEWS) == 5
+
+
+def test_restart_retires_leftovers_and_replaces_snapshot_rows(tmp_path):
+    from summerand.store.repo import Store
+
+    store = Store(f"sqlite:///{tmp_path / 's.sqlite'}")
+    row = {
+        "generation": 1,
+        "embedder_id": "x",
+        "label": "",
+        "headline_id": None,
+        "size": 1,
+        "born_ms": 0,
+        "updated_ms": 0,
+        "retired_ms": None,
+        "members": [],
+    }
+    store.save_clusters([{**row, "id": "c00001"}], {})
+    assert store.retire_open_clusters(99) == 1 and store.cluster("c00001")["retired_ms"] == 99
+    story = {"rank": 1, "score": 0.5, "components": {}}
+    store.save_snapshot(
+        {
+            "ts_ms": 1,
+            "stale": False,
+            "stories": [{**story, "cluster_id": "a"}, {**story, "cluster_id": "b", "rank": 2}],
+        }
+    )
+    store.save_snapshot({"ts_ms": 1, "stale": False, "stories": [{**story, "cluster_id": "c"}]})
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from summerand.store.models import Ranking
+
+    with Session(store.engine) as s:
+        assert [r.cluster_id for r in s.execute(select(Ranking)).scalars()] == ["c"]

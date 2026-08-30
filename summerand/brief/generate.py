@@ -19,6 +19,7 @@ from summerand.brief.validate import split_sentences, validate_brief
 log = logging.getLogger(__name__)
 
 MMR_LAMBDA = 0.7
+MAX_LLM_ERRORS = 3
 
 
 class LLM(Protocol):
@@ -124,19 +125,43 @@ class Briefer:
         self._cache: dict[tuple[str, str, bool], BriefResult] = {}
         self.llm_calls = 0
         self.llm_rejected = 0
+        self.llm_errors = 0
+        self.disabled: str | None = None
+
+    @property
+    def state(self) -> str:
+        if self.llm is None:
+            return "off"
+        if self.disabled:
+            return f"disabled ({self.disabled})"
+        return self.llm.name
+
+    def _note_error(self, exc: Exception) -> None:
+        # Latch the LLM off for the rest of the process: a quota error won't fix itself, and
+        # repeated failures would add a timeout to every brief.
+        code = getattr(exc, "code", None) or (getattr(exc, "body", None) or {}).get("code")
+        self.llm_errors += 1
+        if code in ("insufficient_quota", "credit_balance_exhausted"):
+            self.disabled = "quota"
+        elif self.llm_errors >= MAX_LLM_ERRORS:
+            self.disabled = f"{self.llm_errors} consecutive errors"
+        if self.disabled:
+            log.warning("LLM briefs disabled: %s; using extractive briefs", self.disabled)
 
     async def _write(
         self, system: str, items: list[dict], facts: list[str], k: int, use_llm: bool = True
     ) -> BriefResult:
         source_text = render_items(items, facts)
         problems: list[str] = []
-        if self.llm is not None and use_llm:
+        if self.llm is not None and use_llm and not self.disabled:
             self.llm_calls += 1
             try:
                 draft = await self.llm.complete(system, source_text)
             except Exception as exc:  # network, quota, anything: fall back
                 problems = [f"llm error: {type(exc).__name__}"]
+                self._note_error(exc)
             else:
+                self.llm_errors = 0
                 problems = validate_brief(draft, len(items), source_text)
                 if not problems:
                     return BriefResult(draft, "llm", [])

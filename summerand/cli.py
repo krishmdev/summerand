@@ -31,6 +31,18 @@ DEFAULT_FIXTURE = REPO_ROOT / "fixtures" / "demo_feed.jsonl.gz"
 log = logging.getLogger("summerand")
 
 
+def _run_feed(name: str, coro_fn) -> None:
+    """Run an optional ingest service. A permanent configuration problem ends it with exit 0 so
+    compose doesn't restart it forever."""
+    from summerand.ingest.errors import PermanentFeedError
+
+    try:
+        asyncio.run(coro_fn())
+    except PermanentFeedError as exc:
+        log.error("%s disabled: %s", name, exc)
+        raise typer.Exit(0) from None
+
+
 def _setup(process: str, verbose: bool = False, **overrides: object) -> Settings:
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
@@ -121,12 +133,18 @@ async def _demo(
     hub = Hub(event_clock=stack.pipeline.clock)
     consumer = asyncio.create_task(hub.consume(stack.bus))
     beat = asyncio.create_task(hub.heartbeat())
-    api = create_app(stack.store, hub, settings.watchlist, status=stack.status)
+    api = create_app(
+        stack.store,
+        hub,
+        settings.watchlist,
+        status=stack.status,
+        extension_ids=settings.summerand_extension_ids,
+    )
     server, serving = await _serve(api, host, port)
     base = f"http://{host}:{port}"
     print(
         f"summerand demo: {base}  (embedder {stack.pipeline.index.gen.embedder_id}, "
-        f"briefs {'llm' if stack.pipeline.briefer.llm else 'extractive'})",
+        f"llm: {stack.pipeline.briefer.state})",
         flush=True,
     )
     pace = f"{speed:g}x" if speed else "full speed"
@@ -140,11 +158,12 @@ async def _demo(
         while True:
             await asyncio.sleep(2)
             p = stack.progress
-            if p.get("total"):
-                pct = int(100 * p["sent"] / p["total"])
+            st = stack.pipeline.status(stack.driver)
+            span = (p.get("last_ms") or 0) - (p.get("first_ms") or 0)
+            if span > 0 and st["event_ms"]:
+                pct = int(100 * (st["event_ms"] - p["first_ms"]) / span)
                 if pct // 10 != last // 10:
                     last = pct
-                    st = stack.pipeline.status(stack.driver)
                     print(
                         f"  {pct:3d}%  event time {_hhmm(st['event_ms'])}"
                         f"  window {st['window_size']}  clusters {st['clusters']}  k={st['k']}",
@@ -159,7 +178,7 @@ async def _demo(
     st = stack.status()
     print(
         f"replay done in {time.monotonic() - t0:.0f}s: {st['news']} articles, {st['bars']} bars, "
-        f"{st['clusters']} clusters, late dropped {st['late_dropped'] or 0}",
+        f"{st['clusters']} clusters, late dropped {st['late_dropped'] or 0}, llm {st['llm']}",
         flush=True,
     )
     try:
@@ -230,7 +249,13 @@ async def _live(settings: Settings, host: str, port: int) -> None:
         spider = RssSpider(settings.sources.enabled_feeds, client)
         tasks.append(asyncio.create_task(run_rss(stack.bus, spider, settings.sources.poll_seconds)))
         tasks.append(asyncio.create_task(stream_coinbase(stack.bus, settings.coinbase_ws_url)))
-        api = create_app(stack.store, hub, settings.watchlist, status=stack.status)
+        api = create_app(
+            stack.store,
+            hub,
+            settings.watchlist,
+            status=stack.status,
+            extension_ids=settings.summerand_extension_ids,
+        )
         _, serving = await _serve(api, host, port)
         print(
             f"summerand live: http://{host}:{port}"
@@ -295,14 +320,15 @@ def ingest_polygon() -> None:
     settings = _setup("ingest-polygon")
     key = settings.secret("polygon_api_key")
     if not key:
-        raise typer.Exit("POLYGON_API_KEY is not set")
+        log.error("ingest-polygon disabled: POLYGON_API_KEY is not set")
+        raise typer.Exit(0)
 
     async def run() -> None:
         from summerand.market.polygon_ws import stream_polygon
 
         await stream_polygon(await _kafka(settings), key, settings.polygon_ws_url)
 
-    asyncio.run(run())
+    _run_feed("ingest-polygon", run)
 
 
 @ingest_app.command("cryptopanic")
@@ -310,7 +336,8 @@ def ingest_cryptopanic() -> None:
     settings = _setup("ingest-cryptopanic")
     token = settings.secret("cryptopanic_token")
     if not token:
-        raise typer.Exit("CRYPTOPANIC_TOKEN is not set")
+        log.error("ingest-cryptopanic disabled: CRYPTOPANIC_TOKEN is not set")
+        raise typer.Exit(0)
 
     async def run() -> None:
         import httpx
@@ -327,7 +354,7 @@ def ingest_cryptopanic() -> None:
                 settings.sources.cryptopanic_poll_seconds,
             )
 
-    asyncio.run(run())
+    _run_feed("ingest-cryptopanic", run)
 
 
 @app.command()
@@ -388,6 +415,10 @@ def pipeline(
             clusterer=WindowClusterer(first_id=store.next_cluster_number()),
             live=live_mode,
         )
+        if live_mode:
+            n = store.retire_open_clusters(time.time_ns() // 1_000_000)
+            if n:
+                log.info("retired %d clusters left open by a previous run", n)
         default = "clean_news,ticks_crypto" if live_mode else "clean_news,bars"
         topics = (inputs or default).split(",")
         log.info("pipeline inputs=%s embedder=%s", topics, chain[0].id)
@@ -399,7 +430,7 @@ def pipeline(
 
 
 @app.command()
-def api(host: str = "0.0.0.0", port: int = 8000) -> None:
+def api(host: str = "127.0.0.1", port: int = 8000) -> None:
     """Serve REST + WebSocket from the store, pushing rankings and briefs consumed from Kafka."""
     settings = _setup("api")
 
@@ -418,7 +449,13 @@ def api(host: str = "0.0.0.0", port: int = 8000) -> None:
             asyncio.create_task(hub.heartbeat()),
         ]
         _, serving = await _serve(
-            create_app(store, hub, settings.watchlist, status=lambda: {"mode": "compose"}),
+            create_app(
+                store,
+                hub,
+                settings.watchlist,
+                status=lambda: {"mode": "compose"},
+                extension_ids=settings.summerand_extension_ids,
+            ),
             host,
             port,
         )

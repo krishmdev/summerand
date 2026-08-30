@@ -12,7 +12,16 @@ from summerand.api.ws import Hub
 from summerand.config import Watchlist
 from summerand.store.repo import Store
 
-ORIGINS = r"^(chrome-extension://[a-z]{32}|https?://(localhost|127\.0\.0\.1)(:\d+)?)$"
+
+def origin_pattern(extension_ids: str = "") -> str:
+    """Allowed browser origins: localhost pages and the extension. SUMMERAND_EXTENSION_IDS (comma
+    separated) pins specific extension ids; by default any unpacked extension id is accepted."""
+    ids = [i.strip() for i in extension_ids.split(",") if re.fullmatch(r"[a-p]{32}", i.strip())]
+    ext = "|".join(ids) if ids else "[a-p]{32}"
+    return rf"^(chrome-extension://({ext})|https?://(localhost|127\.0\.0\.1)(:\d+)?)$"
+
+
+ORIGINS = origin_pattern()
 
 
 def create_app(
@@ -21,10 +30,12 @@ def create_app(
     watchlist: Watchlist,
     status: Callable[[], dict[str, Any]] | None = None,
     lifespan: Any = None,
+    extension_ids: str = "",
 ) -> FastAPI:
+    origins = origin_pattern(extension_ids)
     app = FastAPI(title="Summerand", version=__version__, lifespan=lifespan)
     app.add_middleware(
-        CORSMiddleware, allow_origin_regex=ORIGINS, allow_methods=["GET"], allow_headers=["*"]
+        CORSMiddleware, allow_origin_regex=origins, allow_methods=["GET"], allow_headers=["*"]
     )
 
     def latest_snapshot() -> dict[str, Any] | None:
@@ -81,7 +92,7 @@ def create_app(
     @app.websocket("/ws/stream")
     async def stream(ws: WebSocket) -> None:
         origin = ws.headers.get("origin")
-        if origin and not re.match(ORIGINS, origin):
+        if origin and not re.match(origins, origin):
             await ws.close(code=1008)
             return
         initial = []

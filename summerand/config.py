@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     kafka_broker: str = "localhost:19092"
     summerand_topic_prefix: str = ""
+    summerand_extension_ids: str = ""
     database_url: str = "sqlite:///var/summerand.sqlite"
 
     openai_api_key: SecretStr | None = None

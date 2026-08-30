@@ -127,8 +127,21 @@ class Store:
                 if row is not None and row.retired_ms is None:
                     row.retired_ms = ts
 
+    def retire_open_clusters(self, ts_ms: int) -> int:
+        """At pipeline start: clusters left open by a previous run are not live any more."""
+        with Session(self.engine) as s, s.begin():
+            rows = (
+                s.execute(select(ClusterRow).where(ClusterRow.retired_ms.is_(None))).scalars().all()
+            )
+            for row in rows:
+                row.retired_ms = ts_ms
+            return len(rows)
+
     def save_snapshot(self, snap: dict[str, Any]) -> None:
         with Session(self.engine) as s, s.begin():
+            # A rebuilt pipeline may rewrite a snapshot time with a different story set; replace
+            # the rows instead of merging old and new rankings.
+            s.execute(delete(Ranking).where(Ranking.snapshot_ms == snap["ts_ms"]))
             self._upsert(
                 s,
                 Snapshot,

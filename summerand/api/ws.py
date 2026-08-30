@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import time
 from collections.abc import Callable, Coroutine
@@ -20,6 +21,7 @@ from summerand.schemas import Envelope
 log = logging.getLogger(__name__)
 
 QUEUE_SIZE = 100
+MAX_SUBSCRIBE = 200
 HEARTBEAT_S = 15.0
 
 
@@ -112,11 +114,17 @@ class Hub:
             )
 
     async def serve(self, ws: WebSocket, initial: list[dict[str, Any]]) -> None:
-        await ws.accept()
+        # Register and queue the initial messages before accepting, so a broadcast that lands
+        # during the handshake is queued behind them rather than lost.
         client = Client(ws)
         for msg in initial:
             client.queue.put_nowait(msg)
         self.clients.add(client)
+        try:
+            await ws.accept()
+        except Exception:
+            self.clients.discard(client)
+            raise
 
         async def sender() -> None:
             while True:
@@ -128,9 +136,15 @@ class Hub:
 
         async def receiver() -> None:
             while True:
-                msg = await ws.receive_json()
+                try:
+                    msg = json.loads(await ws.receive_text())
+                except ValueError:
+                    continue  # ignore garbage rather than dropping the connection
                 if isinstance(msg, dict) and msg.get("type") == "subscribe":
-                    client.tickers = {str(t).upper() for t in msg.get("tickers") or []}
+                    tickers = msg.get("tickers") or []
+                    if not isinstance(tickers, list):
+                        continue
+                    client.tickers = {str(t).upper()[:12] for t in tickers[:MAX_SUBSCRIBE]}
                     snap = self.latest.get("snapshot")
                     if snap is None and self.fallback_snapshot is not None:
                         snap = self.fallback_snapshot()

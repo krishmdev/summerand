@@ -70,7 +70,10 @@ async def replay(
     records = list(read_fixture(path))
     if progress is not None:
         progress.update(
-            total=len(records), sent=0, first_ms=records[0]["ts_ms"] if records else None
+            total=len(records),
+            sent=0,
+            first_ms=records[0]["ts_ms"] if records else None,
+            last_ms=records[-1]["ts_ms"] if records else None,
         )
     wall0 = time.monotonic()
     ts0 = records[0]["ts_ms"] if records else 0

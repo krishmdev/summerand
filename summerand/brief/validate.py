@@ -22,6 +22,17 @@ def normalize_number(raw: str) -> str:
     return "0" + s if s.startswith(".") else s
 
 
+_PERCENT = re.compile(r"([+\-−]?)(\d+(?:\.\d+)?)\s?%")
+
+
+def percents_in(text: str) -> set[tuple[str, str]]:
+    """(sign, magnitude) for each percentage; sign is "+", "-" or "" when unsigned."""
+    return {
+        ("-" if sign in "-−" and sign else sign, normalize_number(mag))
+        for sign, mag in _PERCENT.findall(_CITE.sub(" ", text))
+    }
+
+
 def numbers_in(text: str) -> set[str]:
     return {normalize_number(m) for m in _NUMBER.findall(_CITE.sub(" ", text))}
 
@@ -57,9 +68,15 @@ def validate_brief(text: str, n_items: int, source_text: str) -> list[str]:
     for c in _CITE.findall(text):
         if not 1 <= int(c) <= n_items:
             problems.append(f"invalid citation [{c}]")
-    allowed = numbers_in(source_text) | {str(i) for i in range(1, n_items + 1)}
+    # Citation indices are stripped before this check, so "[3]" never licenses a bare "3".
+    allowed = numbers_in(source_text)
     for num in sorted(numbers_in(text) - allowed):
         problems.append(f"number not in input: {num}")
+    # A signed percentage must keep its sign: "+2.1%" is invented if the input only has "-2.1%".
+    source_pcts = percents_in(source_text)
+    for sign, mag in sorted(percents_in(text)):
+        if sign and (sign, mag) not in source_pcts and ("", mag) not in source_pcts:
+            problems.append(f"percentage sign not in input: {sign}{mag}%")
     if len(why) > 1:
         problems.append("more than one 'Why it matters' line")
     return problems

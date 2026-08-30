@@ -156,3 +156,21 @@ async def test_repeated_errors_latch_the_llm_off():
     for _ in range(4):
         await b.market_brief(ITEMS, FACTS)
     assert b.llm_calls == 3 and b.state == "disabled (3 consecutive errors)"
+
+
+def test_citation_numbers_only_count_inside_brackets():
+    # With two items, "[2]" is a valid citation but doesn't license the number 2 in the text.
+    src = render_items(
+        [
+            {**ITEMS[1], "n": 1, "title": "SOL outage", "summary": ""},
+            {**ITEMS[1], "n": 2, "title": "More", "summary": ""},
+        ],
+        [],
+    )
+    assert validate_brief("Solana halted in 2 regions [2].", 2, src) == ["number not in input: 2"]
+
+
+def test_percentage_sign_must_match_the_input():
+    assert "percentage sign not in input: +4.2%" in validate_brief("SOL rose +4.2% [2].", 2, SRC)
+    assert validate_brief("SOL fell 4.2% [2].", 2, SRC) == []
+    assert validate_brief("SOL moved -4.2% [2].", 2, SRC) == []

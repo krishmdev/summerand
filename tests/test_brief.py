@@ -124,3 +124,35 @@ def test_extractive_cites_multi_sentence_titles():
     ]
     text = extractive(items, [])
     assert validate_brief(text, 1, render_items(items, [])) == []
+
+
+async def test_quota_errors_latch_the_llm_off():
+    class QuotaError(Exception):
+        code = "insufficient_quota"
+
+    class Broke:
+        name = "openai/test"
+        calls = 0
+
+        async def complete(self, system, user):
+            Broke.calls += 1
+            raise QuotaError
+
+    b = Briefer(Broke())
+    assert b.state == "openai/test"
+    await b.market_brief(ITEMS, FACTS)
+    await b.market_brief(ITEMS, FACTS)
+    assert Broke.calls == 1 and b.state == "disabled (quota)"
+
+
+async def test_repeated_errors_latch_the_llm_off():
+    class Flaky:
+        name = "openai/test"
+
+        async def complete(self, system, user):
+            raise TimeoutError
+
+    b = Briefer(Flaky())
+    for _ in range(4):
+        await b.market_brief(ITEMS, FACTS)
+    assert b.llm_calls == 3 and b.state == "disabled (3 consecutive errors)"

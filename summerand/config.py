@@ -113,6 +113,8 @@ class Symbol:
     bare: bool = True
     product: str | None = None
     legacy: tuple[str, ...] = ()
+    context: str | None = None
+    not_before: tuple[str, ...] = ()
 
 
 @dataclass
@@ -138,6 +140,8 @@ class Watchlist:
                     "aliases": list(s.aliases),
                     "bare": s.bare,
                     "legacy": list(s.legacy),
+                    "context": s.context,
+                    "not_before": list(s.not_before),
                 }
                 for s in self.symbols
             ],
@@ -158,6 +162,8 @@ def load_watchlist(config_dir: Path) -> Watchlist:
                     bare=bool(row.get("bare", True)),
                     product=row.get("product"),
                     legacy=tuple(row.get("legacy", [])),
+                    context=row.get("context"),
+                    not_before=tuple(row.get("not_before", [])),
                 )
             )
     universe = {s.symbol for s in symbols}

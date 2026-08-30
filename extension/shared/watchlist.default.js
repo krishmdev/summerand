@@ -72,18 +72,23 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "crypto",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "BTC"
     },
     {
       "aliases": [
         "Ethereum",
-        "Ether",
-        "ether"
+        "Ether"
       ],
       "asset_class": "crypto",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [
+        "Zurich"
+      ],
       "symbol": "ETH"
     },
     {
@@ -92,7 +97,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "crypto",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "SOL"
     },
     {
@@ -101,7 +108,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "crypto",
       "bare": true,
+      "context": "crypto",
       "legacy": [],
+      "not_before": [],
       "symbol": "XRP"
     },
     {
@@ -110,8 +119,10 @@ globalThis.SummerandDefaultWatchlist = {
         "dogecoin"
       ],
       "asset_class": "crypto",
-      "bare": true,
+      "bare": false,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "DOGE"
     },
     {
@@ -119,8 +130,10 @@ globalThis.SummerandDefaultWatchlist = {
         "Cardano"
       ],
       "asset_class": "crypto",
-      "bare": true,
+      "bare": false,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "ADA"
     },
     {
@@ -129,7 +142,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "crypto",
       "bare": true,
+      "context": "crypto",
       "legacy": [],
+      "not_before": [],
       "symbol": "AVAX"
     },
     {
@@ -138,7 +153,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "crypto",
       "bare": false,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "DOT"
     },
     {
@@ -147,7 +164,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "crypto",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "LINK"
     },
     {
@@ -156,7 +175,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "crypto",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "UNI"
     },
     {
@@ -165,14 +186,18 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "crypto",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "LTC"
     },
     {
       "aliases": [],
       "asset_class": "crypto",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "BNB"
     },
     {
@@ -182,7 +207,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "crypto",
       "bare": true,
+      "context": "crypto",
       "legacy": [],
+      "not_before": [],
       "symbol": "TRX"
     },
     {
@@ -191,14 +218,18 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "crypto",
       "bare": false,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "TON"
     },
     {
       "aliases": [],
       "asset_class": "crypto",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "SUI"
     },
     {
@@ -207,16 +238,20 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "crypto",
       "bare": false,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "HYPE"
     },
     {
       "aliases": [],
       "asset_class": "crypto",
       "bare": true,
+      "context": null,
       "legacy": [
         "MATIC"
       ],
+      "not_before": [],
       "symbol": "POL"
     },
     {
@@ -225,7 +260,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": true,
+      "context": "market",
       "legacy": [],
+      "not_before": [],
       "symbol": "AAPL"
     },
     {
@@ -234,7 +271,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "MSFT"
     },
     {
@@ -244,7 +283,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "NVDA"
     },
     {
@@ -254,7 +295,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": false,
+      "context": "market",
       "legacy": [],
+      "not_before": [],
       "symbol": "META"
     },
     {
@@ -263,7 +306,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": false,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "COIN"
     },
     {
@@ -272,7 +317,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": true,
+      "context": "market",
       "legacy": [],
+      "not_before": [],
       "symbol": "TSLA"
     },
     {
@@ -281,7 +328,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": true,
+      "context": "market",
       "legacy": [],
+      "not_before": [],
       "symbol": "AMZN"
     },
     {
@@ -291,7 +340,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "GOOGL"
     },
     {
@@ -300,7 +351,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "MSTR"
     },
     {
@@ -309,7 +362,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": false,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "HOOD"
     },
     {
@@ -319,7 +374,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "JPM"
     },
     {
@@ -328,7 +385,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": false,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "GS"
     },
     {
@@ -337,7 +396,9 @@ globalThis.SummerandDefaultWatchlist = {
       ],
       "asset_class": "equity",
       "bare": true,
+      "context": null,
       "legacy": [],
+      "not_before": [],
       "symbol": "SPY"
     }
   ]

@@ -1,23 +1,183 @@
 [
-  {"text": "Bitcoin slides as $ETH holds", "expect": ["BTC", "ETH"]},
-  {"text": "Nvidia (NASDAQ: NVDA) beats estimates", "expect": ["NVDA"]},
-  {"text": "The AI boom lifts NVDA and the CEO says more is coming", "expect": ["NVDA"]},
-  {"text": "SEC delays ETF decision as USA regulators weigh in", "expect": []},
-  {"text": "LINK and UNI rally while NEAR stalls", "expect": []},
-  {"text": "Chainlink and Uniswap rally", "expect": ["LINK", "UNI"]},
-  {"text": "Polygon network upgrade cuts POL fees", "expect": ["POL"]},
-  {"text": "Polygon.io adds new market data endpoints", "expect": []},
-  {"text": "Polygon raises prices for its stock data API", "expect": []},
-  {"text": "MATIC holders finish migrating to the new token", "expect": ["POL"]},
-  {"text": "Coinbase (NASDAQ: COIN) shares jump", "expect": ["COIN"]},
-  {"text": "MEME COIN MANIA RETURNS AS ONE TOKEN SOARS", "expect": []},
-  {"text": "Ethereum developers set a date for the next upgrade", "expect": ["ETH"]},
-  {"text": "Metaverse tokens slump", "expect": []},
-  {"text": "Meta Platforms to spend more on data centers", "expect": ["META"]},
-  {"text": "$INTC jumps after the foundry deal", "expect": ["INTC"], "only": "python"},
-  {"text": "$TRUMP memecoin slides", "expect": []},
-  {"text": "Apple and Tesla lead the S&P 500 higher", "expect": ["AAPL", "SPY", "TSLA"]},
-  {"text": "Price hits $100 for a 5% gain", "expect": []},
-  {"text": "Acme Robotics (NYSE: XYZQ) announces results", "expect": ["XYZQ"]},
-  {"text": "Solana ETF filings pile up; SOL up 4%", "expect": ["SOL"]}
+  {
+    "text": "Bitcoin slides as $ETH holds",
+    "expect": [
+      "BTC",
+      "ETH"
+    ]
+  },
+  {
+    "text": "Nvidia (NASDAQ: NVDA) beats estimates",
+    "expect": [
+      "NVDA"
+    ]
+  },
+  {
+    "text": "The AI boom lifts NVDA and the CEO says more is coming",
+    "expect": [
+      "NVDA"
+    ]
+  },
+  {
+    "text": "SEC delays ETF decision as USA regulators weigh in",
+    "expect": []
+  },
+  {
+    "text": "LINK and UNI rally while NEAR stalls",
+    "expect": []
+  },
+  {
+    "text": "Chainlink and Uniswap rally",
+    "expect": [
+      "LINK",
+      "UNI"
+    ]
+  },
+  {
+    "text": "Polygon network upgrade cuts POL fees",
+    "expect": [
+      "POL"
+    ]
+  },
+  {
+    "text": "Polygon.io adds new market data endpoints",
+    "expect": []
+  },
+  {
+    "text": "Polygon raises prices for its stock data API",
+    "expect": []
+  },
+  {
+    "text": "MATIC holders finish migrating to the new token",
+    "expect": [
+      "POL"
+    ]
+  },
+  {
+    "text": "Coinbase (NASDAQ: COIN) shares jump",
+    "expect": [
+      "COIN"
+    ]
+  },
+  {
+    "text": "MEME COIN MANIA RETURNS AS ONE TOKEN SOARS",
+    "expect": []
+  },
+  {
+    "text": "Ethereum developers set a date for the next upgrade",
+    "expect": [
+      "ETH"
+    ]
+  },
+  {
+    "text": "Metaverse tokens slump",
+    "expect": []
+  },
+  {
+    "text": "Meta Platforms to spend more on data centers",
+    "expect": [
+      "META"
+    ]
+  },
+  {
+    "text": "$INTC jumps after the foundry deal",
+    "expect": [
+      "INTC"
+    ],
+    "only": "python"
+  },
+  {
+    "text": "$TRUMP memecoin slides",
+    "expect": []
+  },
+  {
+    "text": "Apple and Tesla lead the S&P 500 higher",
+    "expect": [
+      "AAPL",
+      "SPY",
+      "TSLA"
+    ]
+  },
+  {
+    "text": "Price hits $100 for a 5% gain",
+    "expect": []
+  },
+  {
+    "text": "Acme Robotics (NYSE: ABCD) announces results",
+    "expect": []
+  },
+  {
+    "text": "Solana ETF filings pile up; SOL up 4%",
+    "expect": [
+      "SOL"
+    ]
+  },
+  {
+    "text": "The DOGE cuts reached three more federal agencies",
+    "expect": []
+  },
+  {
+    "text": "ADA compliance is now required for public websites",
+    "expect": []
+  },
+  {
+    "text": "Ripple effects of the rate decision spread across the economy",
+    "expect": []
+  },
+  {
+    "text": "Ripple wins its case as the XRP token jumps",
+    "expect": [
+      "XRP"
+    ]
+  },
+  {
+    "text": "Avalanche closes two ski resorts in Colorado",
+    "expect": []
+  },
+  {
+    "text": "Avalanche network fees drop after the upgrade",
+    "expect": [
+      "AVAX"
+    ]
+  },
+  {
+    "text": "Tron: Ares tops the weekend box office",
+    "expect": []
+  },
+  {
+    "text": "Amazon rainforest fires reach a ten-year high",
+    "expect": []
+  },
+  {
+    "text": "Amazon shares rise after earnings beat",
+    "expect": [
+      "AMZN"
+    ]
+  },
+  {
+    "text": "Grandma's Apple pie recipe for the holidays",
+    "expect": []
+  },
+  {
+    "text": "Tesla MRI scanners arrive at the new hospital wing",
+    "expect": []
+  },
+  {
+    "text": "A Meta analysis of forty clinical trials",
+    "expect": []
+  },
+  {
+    "text": "ETH Zurich researchers publish a new study",
+    "expect": []
+  },
+  {
+    "text": "The price of ether rose overnight",
+    "expect": []
+  },
+  {
+    "text": "Ether climbs as staking demand grows",
+    "expect": [
+      "ETH"
+    ]
+  }
 ]

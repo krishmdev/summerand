@@ -12,6 +12,7 @@ PORT    ?= 8000
 
 setup:            ## install locked deps (+MiniLM, +Playwright) and pinned models
 	$(UV) sync --frozen --extra local --group e2e
+	$(UV) run --frozen playwright install chromium
 	$(MAKE) models
 
 models:           ## download all-MiniLM-L6-v2 at the revision in models.lock and verify sha256

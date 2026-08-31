@@ -7,41 +7,41 @@
   "stride_min": 10,
   "snapshots_with_priced_candidates": 133,
   "snapshots_evaluated": 7,
-  "candidates": 287,
+  "candidates": 289,
   "positive_candidates": 7,
-  "positive_rate": 0.0244,
+  "positive_rate": 0.0242,
   "positive_snapshot_candidate_counts": [
     1,
     1,
     1,
     1,
-    4,
-    2,
+    5,
+    3,
     1
   ],
   "snapshots_where_p5_can_vary_by_order": 0,
   "snapshots_where_ndcg10_can_vary_by_order": 2,
   "metrics": {
     "impact": {
-      "p@5": 0.8214,
-      "ndcg@10": 0.8758
+      "p@5": 0.7905,
+      "ndcg@10": 0.841
     },
     "recency": {
-      "p@5": 0.8214,
-      "ndcg@10": 0.9286
+      "p@5": 0.7905,
+      "ndcg@10": 0.8659
     },
     "size": {
-      "p@5": 0.8214,
-      "ndcg@10": 0.9473
+      "p@5": 0.7905,
+      "ndcg@10": 0.8472
     },
     "random": {
-      "p@5": 0.8214,
-      "ndcg@10": 0.9191
+      "p@5": 0.7905,
+      "ndcg@10": 0.9026
     }
   },
-  "git_commit": "15d1b60",
+  "git_commit": "c6bb268",
   "run_manifest": {
-    "recorded_at": "2026-08-30T08:16:29-0400",
+    "recorded_at": "2026-08-31T00:44:00-0400",
     "host": {
       "chip": "Apple M1 Pro",
       "ram_gb": 16.0,
@@ -50,17 +50,18 @@
       "power": "Now drawing from 'AC Power'"
     },
     "exclusive_compute": {
-      "held": false
+      "held": true,
+      "holder": "localhost-ai-bench"
     },
     "load": {
       "loadavg": [
-        "26.28",
-        "16.87",
-        "11.83"
+        "16.40",
+        "9.45",
+        "6.80"
       ],
-      "cpu_usage": "CPU usage: 67.36% user, 30.28% sys, 2.34% idle",
-      "docker_containers_running": 6,
-      "swap": "total = 9216.00M  used = 8358.00M  free = 858.00M  (encrypted)"
+      "cpu_usage": "CPU usage: 50.86% user, 33.64% sys, 15.48% idle",
+      "docker_containers_running": 8,
+      "swap": "total = 12288.00M  used = 11126.19M  free = 1161.81M  (encrypted)"
     },
     "extra": {
       "script": "ranking_eval",

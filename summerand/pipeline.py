@@ -335,7 +335,7 @@ class Pipeline:
             if r6 is not None:
                 text += f" and {math.expm1(r6) * 100:+.1f}% over 6h"
             facts.append(text)
-        return facts
+        return facts[:4]  # keep the brief's fact line short enough to read in the side panel
 
     async def _market_brief(self, now_ms: int, snap: dict[str, Any]) -> None:
         top = snap["stories"][:5]

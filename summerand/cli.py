@@ -101,6 +101,9 @@ def demo(
     llm: Annotated[str | None, typer.Option(help="auto|off|openai")] = None,
     exit_when_done: bool = False,
     smoke: Annotated[bool, typer.Option(help="After the replay, check REST + WS and exit")] = False,
+    until: Annotated[
+        str | None, typer.Option(help="stop the replay at this ISO time (UTC)")
+    ] = None,
     verbose: bool = False,
 ) -> None:
     """Replay the recorded fixture through the in-memory bus and serve the API. No keys needed."""
@@ -113,7 +116,14 @@ def demo(
         summerand_embedder=embedder,
         summerand_llm=llm,
     )
-    asyncio.run(_demo(settings, fixture, speed or None, host, port, exit_when_done or smoke, smoke))
+    from summerand.schemas import iso_to_ms
+
+    until_ms = iso_to_ms(until) if until else None
+    asyncio.run(
+        _demo(
+            settings, fixture, speed or None, host, port, exit_when_done or smoke, smoke, until_ms
+        )
+    )
 
 
 async def _demo(
@@ -124,6 +134,7 @@ async def _demo(
     port: int,
     exit_when_done: bool,
     smoke: bool,
+    until_ms: int | None = None,
 ) -> None:
     from summerand.api.app import create_app
     from summerand.api.ws import Hub
@@ -172,7 +183,7 @@ async def _demo(
 
     ticker = asyncio.create_task(progress())
     t0 = time.monotonic()
-    await run_replay(stack, fixture, speed)
+    await run_replay(stack, fixture, speed, until_ms)
     ticker.cancel()
     await asyncio.sleep(0.2)
     st = stack.status()

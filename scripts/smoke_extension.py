@@ -72,6 +72,7 @@ def main() -> int:
     ap.add_argument("--embedder", default="auto")
     ap.add_argument("--port", type=int, default=8791)
     ap.add_argument("--shots", type=Path)
+    ap.add_argument("--until", help="stop the replay here (ISO, UTC), e.g. during market hours")
     args = ap.parse_args()
     base = f"http://127.0.0.1:{args.port}"
     results: dict[str, object] = {}
@@ -92,6 +93,7 @@ def main() -> int:
             args.fixture,
             "--embedder",
             args.embedder,
+            *(["--until", args.until] if args.until else []),
             "--db",
             str(Path(tempfile.mkdtemp()) / "smoke.sqlite"),
         ],

@@ -83,7 +83,9 @@ def build_stack(
     )
 
 
-async def run_replay(stack: Stack, fixture: Path, speed: float | None) -> EventTimeDriver:
+async def run_replay(
+    stack: Stack, fixture: Path, speed: float | None, until_ms: int | None = None
+) -> EventTimeDriver:
     """Replay a fixture through bus -> ETL -> pipeline and wait until the pipeline has drained."""
     inputs = [T.CLEAN_NEWS, T.BARS]
     raw_sub = stack.bus.subscribe(T.RAW_NEWS, "etl")
@@ -96,7 +98,7 @@ async def run_replay(stack: Stack, fixture: Path, speed: float | None) -> EventT
     pipe = asyncio.create_task(
         run_pipeline(stack.bus, stack.pipeline, inputs, subs=subs, on_driver=keep)
     )
-    await replay(stack.bus, fixture, speed=speed, progress=stack.progress)
+    await replay(stack.bus, fixture, speed=speed, progress=stack.progress, until_ms=until_ms)
     await etl
     driver = await pipe
     stack.progress["done"] = True

@@ -66,8 +66,9 @@ async def replay(
     speed: float | None = None,
     topics: tuple[str, ...] = (T.RAW_NEWS, T.BARS),
     progress: dict[str, Any] | None = None,
+    until_ms: int | None = None,
 ) -> int:
-    records = list(read_fixture(path))
+    records = [r for r in read_fixture(path) if until_ms is None or r["ts_ms"] <= until_ms]
     if progress is not None:
         progress.update(
             total=len(records),

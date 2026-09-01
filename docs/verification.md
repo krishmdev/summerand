@@ -1,9 +1,10 @@
 # Verification log
 
-What was run on the development machine (Apple M1 Pro, macOS, Docker Desktop), and what happened.
-"Offline wrapper" means a sandbox-exec profile that denies all outbound network except localhost
-and unsets every provider key; the egress canary (`summerand egress-check`, and the startup check
-enabled by `SUMMERAND_EGRESS_CHECK=require-blocked`) confirmed it in each process.
+This log records checks run on the development machine (Apple M1 Pro, macOS, Docker Desktop).
+The "offline wrapper" is a sandbox-exec profile that blocks outbound network access except to
+localhost and unsets the provider keys used by Summerand. Each process confirmed the block with
+the egress canary (`summerand egress-check`) and the startup check enabled by
+`SUMMERAND_EGRESS_CHECK=require-blocked`.
 
 ## Offline runs (no keys, no network)
 
@@ -16,12 +17,12 @@ enabled by `SUMMERAND_EGRESS_CHECK=require-blocked`) confirmed it in each proces
 | 2026-08-29 | `demo --speed 300 --smoke` under the wrapper | 24h fixture replayed in 288s wall time, 0 late events, smoke passed |
 | 2026-08-29 | `make compose-offline`: Redpanda, Postgres, replay, ETL, pipeline, API on an `internal: true` network | canary blocked in replay, etl, pipeline, api and smoke; 10,562 records through Redpanda; pipeline finished with 0 late events; smoke from inside the network passed REST + WS |
 | 2026-08-30 | `docker run --network none` with the image: canary, then `demo --smoke` on the tiny fixture (the CI offline job) | canary blocked; smoke passed |
+| 2026-08-31 | `scripts/smoke_extension.py --until 2026-08-28T19:30:00Z` under the wrapper, after the title-noise filter | 170 articles after dropping templated posts; panel connected, brief expands, highlighting as before |
+| 2026-08-31 | `scripts/smoke_extension.py --embedder local --until 2026-08-28T22:00:00Z --shots <dir>` with provider keys unset | 113 ingested articles, 9 panel cards, connected state, cited brief and ticker highlighting verified; captured screenshots copied to `docs/` |
 
-| 2026-08-31 | `scripts/smoke_extension.py --until 2026-08-28T19:30:00Z` under the wrapper, after the title-noise filter | 170 articles after dropping templated posts; panel live, brief expands, highlighting as before; screenshots in `docs/` |
-
-The unpaced and 300x replays of the tiny fixture producing identical cluster membership, ranking
-snapshots (including every score component) and brief hashes is a test
-(`tests/test_replay_e2e.py`).
+The test `tests/test_replay_e2e.py` checks that unpaced and 300x replays of the tiny fixture
+produce identical cluster membership, ranking snapshots (including every score component), and
+brief hashes.
 
 ## Live runs (network, real keys)
 

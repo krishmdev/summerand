@@ -1,35 +1,65 @@
 # Summerand
 
-Market news clustering, impact ranking and briefs, streamed to a Chrome side panel.
+Summerand groups market news, ranks clusters with an impact heuristic, and sends cited briefs to a Chrome side panel.
 
-Summerand polls financial and crypto news feeds and live market data, groups related articles
-with embeddings and K-Means, scores each group for likely market impact, and writes short cited
-briefs. A FastAPI server pushes the ranking over a WebSocket to a Chrome side panel, which also
-highlights tickers on the page you're reading.
+It groups financial and crypto news, scores each group using hand-set weights, and writes short
+briefs with citations. FastAPI sends rankings over a WebSocket to the panel, which also marks
+tickers on the page you're reading. The demo replays recorded stories and prices. The panel can
+show a connected server while the market data is historical. In live mode, Summerand polls news
+feeds and market data, with the limits described below.
 
 <img src="docs/sidepanel.png" width="380" alt="Side panel showing the market brief and ranked story cards with score bars">
 
+_Selected fixture moment (2026-08-28 22:00 UTC) in the Chrome side panel. The market brief
+extracts sentences from several unrelated top stories. Clusters are illustrative; some sources
+still cross topics within a cluster._
+
 ## Run the recorded demo
 
-`make setup` installs the locked Python dependencies and pinned local embedding model; it needs network access. After setup, replay the included 24-hour fixture without API keys:
+From a clean clone, install [uv](https://docs.astral.sh/uv/getting-started/installation/)
+and Python 3.11 or newer. These commands download the locked core Python dependencies. You do
+not need an account, API key, model download, Docker, or Node:
+
+```sh
+make setup-demo
+make demo-hashing
+```
+
+The API serves at `http://127.0.0.1:8000`. When the terminal says `replay done`, open
+`/api/stories` at that address to see the ranked fixture stories. Each run replaces the
+disposable `var/demo-hashing.sqlite` file and its SQLite sidecars, then serves the final state
+until you press Ctrl-C. The 24-hour fixture uses hashing vectors on this path, so its clusters
+may differ from a MiniLM run.
+
+To view the side panel, use Chrome 116 or newer: open `chrome://extensions`, enable Developer
+mode, choose **Load unpacked**, and select this repository's `extension` directory. Click the
+Summerand toolbar icon to open the panel; its **Connected** indicator means the local server is
+reachable, not that market data is live. The panel defaults to `127.0.0.1:8000`; change it on
+the extension options page if you chose another port. Node is needed only for the extension
+unit tests (`make ext-test`).
+
+For the recorded MiniLM setup used by the checked-in ranking evaluation, run `make setup`.
+This downloads the pinned model and Playwright Chromium, then installs the locked Python
+dependencies. After that, replay with:
 
 ```sh
 SUMMERAND_EMBEDDER=local SUMMERAND_LLM=off make demo-fast
 ```
 
-The API serves at `http://127.0.0.1:8000`. To view the side panel, open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this repository's `extension` directory. The demo command replays into a local SQLite database and serves the final state until stopped. `make ext-test` runs the extension's Node tests; `make test-fast` runs the Python tests.
+`make test-fast` runs the Python tests. `make ext-test` runs the extension's Node tests.
 
 `make demo` replays at 300x instead (24 hours of news in about five minutes), so you can watch
 clusters form and rankings change in the panel. Speed only changes how long the replay sleeps
-between events; the pipeline's results are the same at any speed. `--until 2026-08-28T19:30:00Z`
-stops the replay at a chosen moment (the screenshot above is from then). Without `make setup`'s model
-download the demo falls back to hashed bag-of-words vectors, which cluster less well but need
-nothing.
+between events; the pipeline's results are the same at any speed. `--until 2026-08-28T22:00:00Z`
+stops the replay at a chosen moment (used for the screenshot above). The default embedder
+can fall back to hashing if no local model is available; `demo-hashing` selects hashing explicitly.
 
-Nothing in the demo needs the network after setup. `make e2e-offline`, run under a wrapper that
-blocks outbound connections, runs the demo, the tests and the extension smoke test with every
-process checking at startup that it cannot reach the internet (see
-[docs/verification.md](docs/verification.md)).
+Nothing in the replay needs the network after setup. On macOS, run
+`scripts/offline-run make e2e-offline` after `make setup` and with Node installed. The included
+wrapper denies outbound connections except localhost, unsets provider keys used by Summerand,
+and makes the demo, tests and Chromium extension smoke check verify that egress is blocked at
+startup. The wrapper uses macOS `sandbox-exec`; see [docs/verification.md](docs/verification.md)
+for the historical run and the distinction between replay and live-feed validation.
 
 ## How it works
 
@@ -131,12 +161,12 @@ make compose-offline       # the same replay on an internal-only network, checke
 ```
 
 The API binds to 127.0.0.1 unless given `--host` (compose passes 0.0.0.0 inside the network).
-Set `SUMMERAND_EXTENSION_IDS` to pin which extension ids may connect; by default any unpacked
-extension id and localhost pages are allowed. Redpanda listens on `redpanda:9092` for containers and `localhost:19092` for the host. Postgres
-is published on `127.0.0.1:5433` (`SUMMERAND_PG_PORT`), and the API on `SUMMERAND_API_PORT`
-(default 8000). Keys go in `.env` (see `.env.example`); all of them are optional. To use MiniLM
-inside the containers, build with `SUMMERAND_EXTRAS="--extra pg --extra local"` (this adds
-torch) after `make models`.
+Set `SUMMERAND_EXTENSION_IDS` to restrict which extension ids may connect; by default, any
+unpacked extension id and localhost pages are allowed. Redpanda listens on `redpanda:9092` for
+containers and `localhost:19092` for the host. Postgres is published on `127.0.0.1:5433`
+(`SUMMERAND_PG_PORT`), and the API on `SUMMERAND_API_PORT` (default 8000). Keys go in `.env`
+(see `.env.example`); all of them are optional. To use MiniLM inside the containers, run
+`make models`, then build with `SUMMERAND_EXTRAS="--extra pg --extra local"` (which adds torch).
 
 The pipeline doesn't commit offsets. On restart it rebuilds its window from the retained topics
 (news kept 26h, ticks 7h). While it is catching up it doesn't call the LLM or push to clients.
@@ -181,9 +211,22 @@ by the tests.
 
 ## Ranking evaluation
 
-`make eval` replays the same fixture and compares the pipeline's impact order with recency, cluster size, and 200 seeded random shuffles. A story is labeled positive when a ticker's absolute 60-minute log return exceeds twice its trailing 120-minute realized one-minute volatility scaled by `sqrt(60)`. Only stories with sufficient price history and a future price enter the evaluation. The result is in [`results/ranking_eval.json`](results/ranking_eval.json); the script and fixture hashes in that file identify the evaluated inputs.
+`make eval` replays the fixture with the local MiniLM model and compares the impact order with
+recency, cluster size, and 200 seeded random shuffles. A story is positive when a ticker's
+absolute 60-minute log return exceeds twice its trailing 120-minute realized one-minute
+volatility scaled by `sqrt(60)`. A story needs enough price history and a future price to enter
+the evaluation. The current local recompute is in
+[`results/ranking_eval.json`](results/ranking_eval.json). Its fixture and evaluation-script
+SHA-256 values match this tree. Reproducing its numbers requires `make setup` and the same local
+model; the hashing quickstart uses a different embedding configuration.
 
-This fixture **does not establish a ranking improvement**. Only 7 of 133 snapshots with priced candidates have a positive story, and those 7 contain 1, 1, 1, 1, 5, 3, and 1 candidates. Precision at five therefore cannot vary with order in any evaluated snapshot. NDCG at ten can vary in only two. The positive snapshots are also drawn from one replay and are not independent market events. The scores are descriptive diagnostics, not evidence that impact ranking predicts price moves or beats the baselines. A useful next evaluation needs more independent positive events and multiple candidates per snapshot, with the labeling rule and comparison fixed before inspecting results.
+This fixture **does not establish a ranking improvement**. Only 7 of 133 snapshots with priced
+candidates have a positive story. Those 7 have 1, 1, 1, 1, 5, 3, and 1 candidates. Precision at
+five cannot vary with order in any evaluated snapshot, and NDCG at ten can vary in only two.
+These positive snapshots come from one replay, so they are not independent market events. The
+scores describe this run; they do not show that impact ranking predicts price moves or beats the
+baselines. A useful next evaluation needs more independent positive events and multiple
+candidates per snapshot, with the labeling rule and comparison fixed before seeing results.
 
 ## Limitations
 

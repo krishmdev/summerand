@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Summerand Markets",
   "version": "0.2.0",
-  "description": "Live-ranked market news clusters and briefs in the side panel, with tickers highlighted on the page you're reading.",
+  "description": "Market news clusters and cited briefs from a local server, with tickers highlighted on the page you're reading.",
   "minimum_chrome_version": "116",
   "permissions": ["sidePanel", "storage"],
   "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],

@@ -10,9 +10,10 @@ feeds and market data, with the limits described below.
 
 <img src="docs/sidepanel.png" width="380" alt="Side panel showing the market brief and ranked story cards with score bars">
 
-_Selected fixture moment (2026-08-28 22:00 UTC) in the Chrome side panel. The market brief
-extracts sentences from several unrelated top stories. Clusters are illustrative; some sources
-still cross topics within a cluster._
+_The side panel at a replayed fixture moment (2026-08-28 22:00 UTC). The market brief shows only
+price moves here, because every headline it would quote is already a card below. Clusters are
+illustrative, and some still mix topics. Clusters that take in most of the window from many
+outlets are shown as "broad, mixed coverage" instead of as one story._
 
 ## Run the recorded demo
 

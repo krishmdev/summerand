@@ -17,6 +17,8 @@ from summerand.rank import impact
 from summerand.schemas import CleanNews
 
 SURFACE_TOP = 10
+BROAD_SHARE = 0.5
+BROAD_SOURCES = 6
 NOVELTY_MEMORY_MS = 24 * HOUR_MS
 
 
@@ -36,6 +38,12 @@ def article_ref(a: CleanNews) -> dict[str, Any]:
         "source": a.source,
         "published_ms": a.published_ms,
     }
+
+
+def is_broad(size: int, n_sources: int, window_size: int) -> bool:
+    """A cluster holding most of the window from many outlets is a grab bag, not one story. The
+    panel shows it as mixed coverage instead of a lead headline."""
+    return window_size > 0 and size / window_size > BROAD_SHARE and n_sources >= BROAD_SOURCES
 
 
 def move_fact(m: impact.TickerMove) -> str:
@@ -58,7 +66,10 @@ class Ranker:
         prices: PriceBook,
         labels: dict[str, str],
         headlines: dict[str, str],
+        cohesion: dict[str, float] | None = None,
+        window_size: int = 0,
     ) -> list[dict[str, Any]]:
+        cohesion = cohesion or {}
         scored = []
         for cid, cluster in state.clusters.items():
             members = [articles[i] for i in cluster.members if i in articles]
@@ -116,6 +127,8 @@ class Ranker:
                     "first_ms": min(pubs),
                     "last_ms": max(pubs),
                     "born_ms": cluster.born_ms,
+                    "cohesion": r6(cohesion.get(cid)),
+                    "broad": is_broad(len(members), len(srcs), window_size),
                 }
             )
         for cid in [c for c in self.ema if c not in state.clusters]:

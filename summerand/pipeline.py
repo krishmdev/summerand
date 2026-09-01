@@ -87,6 +87,7 @@ class Pipeline:
         self._new_articles: list[CleanNews] = []
         self._new_bars: list[Bar] = []
         self.labels: dict[str, str] = {}
+        self.cohesion: dict[str, float] = {}
         self.headlines: dict[str, str] = {}
         self.last_select_ms: int | None = None
         self.last_good: dict[str, Any] | None = None
@@ -191,9 +192,11 @@ class Pipeline:
         terms = ctfidf_terms(docs)
         self.labels = {cid: ", ".join(t) for cid, t in terms.items()}
         self.headlines = {}
+        self.cohesion = {}
         for cid, c in state.clusters.items():
             _, Xc = self.index.matrix(c.members)
             self.headlines[cid] = c.members[headline_index(Xc, c.centroid)]
+            self.cohesion[cid] = float((Xc @ c.centroid).mean())
         self.store.save_clusters(
             [
                 {
@@ -224,6 +227,12 @@ class Pipeline:
             "generation": self.index.generation,
             "embedder_id": self.index.gen.embedder_id,
             "window_size": len(self.index.gen.vectors),
+            "k": self.clusterer.k,
+            "silhouette": (
+                round(self.clusterer.silhouette[self.clusterer.k], 4)
+                if self.clusterer.k in self.clusterer.silhouette
+                else None
+            ),
         }
 
     async def rank(self, now_ms: int) -> None:
@@ -236,7 +245,14 @@ class Pipeline:
             return
         else:
             stories = self.ranker.rank(
-                now_ms, state, self.articles, self.prices, self.labels, self.headlines
+                now_ms,
+                state,
+                self.articles,
+                self.prices,
+                self.labels,
+                self.headlines,
+                cohesion=self.cohesion,
+                window_size=len(self.index.gen.vectors),
             )
             for s in stories:
                 s["brief"] = self.cluster_briefs.get(s["cluster_id"])

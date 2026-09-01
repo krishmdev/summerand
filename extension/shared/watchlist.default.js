@@ -262,7 +262,11 @@ globalThis.SummerandDefaultWatchlist = {
       "bare": true,
       "context": "market",
       "legacy": [],
-      "not_before": [],
+      "not_before": [
+        "pie",
+        "cider",
+        "orchard"
+      ],
       "symbol": "AAPL"
     },
     {
@@ -330,7 +334,11 @@ globalThis.SummerandDefaultWatchlist = {
       "bare": true,
       "context": "market",
       "legacy": [],
-      "not_before": [],
+      "not_before": [
+        "rainforest",
+        "River",
+        "basin"
+      ],
       "symbol": "AMZN"
     },
     {

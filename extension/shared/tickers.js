@@ -41,6 +41,11 @@
       ? new RegExp(`(?<![A-Za-z0-9&])(${aliases.map(escapeRe).join("|")})(?![A-Za-z0-9&])`, "g")
       : null;
 
+    function followedBy(text, end, words) {
+      const after = text.slice(end).trimStart().toLowerCase();
+      return (words || []).some((w) => new RegExp(`^${escapeRe(w.toLowerCase())}\\b`).test(after));
+    }
+
     function isCrypto(sym) {
       return watch.has(sym) && watch.get(sym).asset_class === "crypto";
     }
@@ -73,6 +78,7 @@
         for (const m of text.matchAll(aliasRe)) {
           const sym = aliasTo.get(m[1]);
           const spec = watch.get(sym);
+          if (spec && followedBy(text, m.index + m[0].length, spec.not_before)) continue;
           if (spec && spec.context && !m[1].includes(" ")) {
             gated.push([m.index, m.index + m[0].length, sym, "alias", m[1]]);
           } else add(m.index, m.index + m[0].length, sym, "alias");
@@ -91,8 +97,7 @@
           }
           const spec = watch.get(word);
           if (!spec || spec.bare === false) continue;
-          const after = text.slice(m.index + word.length).trimStart();
-          if ((spec.not_before || []).some((w) => after.startsWith(w))) continue;
+          if (followedBy(text, m.index + word.length, spec.not_before)) continue;
           if (word === "POL" || spec.context) gated.push([m.index, m.index + word.length, word, "bare", word]);
           else add(m.index, m.index + word.length, word, "bare");
         }

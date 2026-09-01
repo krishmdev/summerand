@@ -179,5 +179,19 @@
     "expect": [
       "ETH"
     ]
+  },
+  {
+    "text": "Apple pie sales rose ahead of Thanksgiving",
+    "expect": []
+  },
+  {
+    "text": "Amazon rainforest logging hit record sales of timber",
+    "expect": []
+  },
+  {
+    "text": "Apple sales rose in China last quarter",
+    "expect": [
+      "AAPL"
+    ]
   }
 ]

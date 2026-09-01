@@ -4,7 +4,7 @@
 # product: the price feed symbol (Coinbase product id for crypto).
 # context: aliases and bare matches only count when the text has crypto or market words nearby
 #   ("Ripple effects", "Apple pie", "Tesla MRI" are not tickers).
-# not_before: words that cancel a bare match when they follow it ("ETH Zurich").
+# not_before: words that cancel a match when they follow it ("ETH Zurich", "Apple pie").
 crypto:
   - {symbol: BTC, product: BTC-USD, aliases: [Bitcoin, bitcoin, BTC]}
   - {symbol: ETH, product: ETH-USD, aliases: [Ethereum, Ether], not_before: [Zurich]}
@@ -27,13 +27,13 @@ crypto:
   - {symbol: POL, aliases: [], legacy: [MATIC]}
 
 equities:
-  - {symbol: AAPL, aliases: [Apple], context: market}
+  - {symbol: AAPL, aliases: [Apple], context: market, not_before: [pie, cider, orchard]}
   - {symbol: MSFT, aliases: [Microsoft]}
   - {symbol: NVDA, aliases: [Nvidia, NVIDIA]}
   - {symbol: META, aliases: [Meta Platforms, Meta], bare: false, context: market}
   - {symbol: COIN, aliases: [Coinbase], bare: false}
   - {symbol: TSLA, aliases: [Tesla], context: market}
-  - {symbol: AMZN, aliases: [Amazon], context: market}
+  - {symbol: AMZN, aliases: [Amazon], context: market, not_before: [rainforest, River, basin]}
   - {symbol: GOOGL, aliases: [Alphabet, Google]}
   - {symbol: MSTR, aliases: [MicroStrategy]}
   - {symbol: HOOD, aliases: [Robinhood], bare: false}

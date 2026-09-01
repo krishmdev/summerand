@@ -69,6 +69,11 @@ class TickerExtractor:
             else None
         )
 
+    @staticmethod
+    def _followed_by(text: str, end: int, words: tuple[str, ...]) -> bool:
+        after = text[end:].lstrip().lower()
+        return any(re.match(re.escape(w.lower()) + r"\b", after) for w in words)
+
     def _context_ok(self, symbol: str, text: str, found: list[Match], alias: str = "") -> bool:
         spec = self.watch.get(symbol)
         if spec is None or spec.context is None or " " in alias:
@@ -104,6 +109,8 @@ class TickerExtractor:
             for m in self._alias_re.finditer(text):
                 sym = self.alias_to_symbol[m.group(1)]
                 spec = self.watch.get(sym)
+                if spec is not None and self._followed_by(text, m.end(), spec.not_before):
+                    continue
                 if spec is not None and spec.context and " " not in m.group(1):
                     gated.append((m.start(), m.end(), sym, "alias", m.group(1)))
                 else:
@@ -124,8 +131,7 @@ class TickerExtractor:
                 spec = self.watch.get(word)
                 if spec is None or not spec.bare:
                     continue
-                after = text[m.end() :].lstrip()
-                if any(after.startswith(w) for w in spec.not_before):
+                if self._followed_by(text, m.end(), spec.not_before):
                     continue
                 if word == "POL" or spec.context:
                     gated.append((m.start(), m.end(), word, "bare", word))

@@ -174,3 +174,18 @@ def test_percentage_sign_must_match_the_input():
     assert "percentage sign not in input: +4.2%" in validate_brief("SOL rose +4.2% [2].", 2, SRC)
     assert validate_brief("SOL fell 4.2% [2].", 2, SRC) == []
     assert validate_brief("SOL moved -4.2% [2].", 2, SRC) == []
+
+
+async def test_non_json_error_bodies_dont_break_the_brief_job():
+    class BadGateway(Exception):
+        code = None
+        body = "<html>502 Bad Gateway</html>"
+
+    class Proxy:
+        name = "openai/test"
+
+        async def complete(self, system, user):
+            raise BadGateway
+
+    res = await Briefer(Proxy()).market_brief(ITEMS, FACTS)
+    assert res.method == "extractive" and res.problems == ["llm error: BadGateway"]

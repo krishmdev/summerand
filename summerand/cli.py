@@ -272,9 +272,16 @@ async def _live(settings: Settings, host: str, port: int) -> None:
             f"summerand live: http://{host}:{port}"
             f"  (embedder {stack.pipeline.index.gen.embedder_id})"
         )
-        await serving
+        # Every background task is supposed to run forever. If one dies (or the server stops),
+        # log it and exit nonzero instead of serving a pipeline that silently stopped.
+        done, _ = await asyncio.wait([serving, *tasks], return_when=asyncio.FIRST_COMPLETED)
     for t in tasks:
         t.cancel()
+    failed = [t for t in done if t is not serving and (t.cancelled() or t.exception())]
+    for t in failed:
+        log.error("live task stopped: %r", None if t.cancelled() else t.exception())
+    if failed:
+        raise typer.Exit(1)
 
 
 # compose services -----------------------------------------------------------------------------

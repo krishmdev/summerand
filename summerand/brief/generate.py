@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -20,6 +21,7 @@ log = logging.getLogger(__name__)
 
 MMR_LAMBDA = 0.7
 MAX_LLM_ERRORS = 3
+CACHE_SIZE = 2000
 
 
 class LLM(Protocol):
@@ -122,7 +124,7 @@ class BriefResult:
 class Briefer:
     def __init__(self, llm: LLM | None = None) -> None:
         self.llm = llm
-        self._cache: dict[tuple[str, str, bool], BriefResult] = {}
+        self._cache: OrderedDict[tuple[str, str, bool], BriefResult] = OrderedDict()
         self.llm_calls = 0
         self.llm_rejected = 0
         self.llm_errors = 0
@@ -139,7 +141,8 @@ class Briefer:
     def _note_error(self, exc: Exception) -> None:
         # Latch the LLM off for the rest of the process: a quota error won't fix itself, and
         # repeated failures would add a timeout to every brief.
-        code = getattr(exc, "code", None) or (getattr(exc, "body", None) or {}).get("code")
+        body = getattr(exc, "body", None)
+        code = getattr(exc, "code", None) or (body.get("code") if isinstance(body, dict) else None)
         self.llm_errors += 1
         if code in ("insufficient_quota", "credit_balance_exhausted"):
             self.disabled = "quota"
@@ -186,6 +189,9 @@ class Briefer:
         key = (cluster_id, membership_hash(member_ids), use_llm and self.llm is not None)
         if key not in self._cache:
             self._cache[key] = await self._write(SYSTEM, items, facts, k=3, use_llm=use_llm)
+            while len(self._cache) > CACHE_SIZE:
+                self._cache.popitem(last=False)
+        self._cache.move_to_end(key)
         return self._cache[key]
 
     async def market_brief(

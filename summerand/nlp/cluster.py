@@ -27,6 +27,8 @@ from sklearn.metrics import silhouette_score
 
 log = logging.getLogger(__name__)
 
+RETIRED_MEMORY_MS = 26 * 3600 * 1000  # long runs only need retirements from the last day
+
 
 @dataclass
 class Cluster:
@@ -276,6 +278,8 @@ class WindowClusterer:
         retired = sorted(set(prev.clusters) - set(clusters)) if prev else []
         for cid in retired:
             self.retired[cid] = now_ms
+        for cid in [c for c, ts in self.retired.items() if now_ms - ts > RETIRED_MEMORY_MS]:
+            del self.retired[cid]
         self.state = ClusterState(
             built_ms=now_ms,
             generation=generation,

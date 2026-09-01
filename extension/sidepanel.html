@@ -16,28 +16,29 @@
     </div>
     <div class="masthead-row sub">
       <p class="asof" id="asof">Waiting for the first ranking</p>
-      <div class="filters">
-        <button type="button" class="toggle" id="onpage" aria-pressed="false" title="Show only stories whose tickers appear on the current tab">On this page</button>
-        <span id="activeFilter"></span>
-      </div>
+      <button type="button" class="toggle" id="onpage" aria-pressed="false" hidden
+              title="Show only stories whose tickers appear on the current tab">On this page</button>
     </div>
+    <div class="masthead-row filter-row" id="activeFilter" hidden></div>
+    <div id="banner"></div>
   </header>
 
   <main id="main" aria-busy="true">
-    <div id="banner"></div>
     <section class="brief" id="marketBrief" aria-labelledby="briefTitle" hidden>
       <h2 class="eyebrow" id="briefTitle">Market brief</h2>
       <p class="brief-body" id="briefBody"></p>
-      <p class="brief-why" id="briefWhy"></p>
+      <div class="movers" id="movers" role="table" aria-label="Price moves"></div>
       <p class="brief-meta" id="briefMeta"></p>
     </section>
-    <div class="legend" id="legend" aria-label="Score components"></div>
-    <ol class="stories" id="stories" aria-label="Ranked stories"></ol>
+    <div class="legend" id="legend" role="group" aria-label="Score components" hidden></div>
+    <h2 class="sr-only" id="storiesTitle">Ranked stories</h2>
+    <ol class="stories" id="stories" aria-labelledby="storiesTitle"></ol>
+    <p class="footnote" id="footnote" hidden></p>
     <div id="state"></div>
   </main>
 
   <footer class="foot">
-    <a href="options.html" target="_blank" id="settingsLink">Settings</a>
+    <button type="button" class="linkish" id="settings">Settings</button>
     <span id="server"></span>
   </footer>
 

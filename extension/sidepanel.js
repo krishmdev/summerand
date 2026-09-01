@@ -5,6 +5,7 @@
   "use strict";
   const V = globalThis.SummerandView;
   const DEFAULT_SERVER = "http://127.0.0.1:8000";
+  const MAX_CHIPS = 5;
   const hasChrome = Boolean(globalThis.chrome && chrome.storage && chrome.storage.sync);
 
   const state = {
@@ -12,20 +13,24 @@
     stories: [],
     snapshot: null,
     market: null,
+    status: null,
     conn: "connecting",
     lastMessageAt: 0,
+    lastSnapshotAt: 0,
     everConnected: false,
     error: null,
     tickerFilter: [],
     pageTickers: null,
     onPage: false,
     retry: 0,
+    expandedChips: new Set(),
   };
   let ws = null;
-  const seenClusters = new Set(); // only cards for newly surfaced clusters animate in
   let reconnectTimer = null;
+  const seenClusters = new Set(); // only cards for newly surfaced clusters animate in
 
   const $ = (id) => document.getElementById(id);
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
   function h(tag, props, ...children) {
     const el = document.createElement(tag);
@@ -51,6 +56,10 @@
     return h("a", { class: cls, href: safe, target: "_blank", rel: "noopener noreferrer", text });
   }
 
+  function base() {
+    return state.server.replace(/\/$/, "");
+  }
+
   // settings --------------------------------------------------------------------------------
 
   function loadSettings() {
@@ -66,29 +75,46 @@
 
   // connection ------------------------------------------------------------------------------
 
+  const CONN_TEXT = {
+    connecting: "Connecting",
+    waiting: "Connected · waiting",
+    live: "Connected",
+    stale: "Stale",
+    offline: "Offline",
+  };
+
   function setConn(conn, text) {
     state.conn = conn;
     const el = $("conn");
     el.dataset.state = conn;
-    el.querySelector(".conn-text").textContent = text;
+    el.querySelector(".conn-text").textContent = text || CONN_TEXT[conn];
+  }
+
+  function syncConn() {
+    if (state.conn === "offline" || state.conn === "connecting") return;
+    if (!state.snapshot) setConn("waiting");
+    else if (state.snapshot.stale) setConn("stale");
+    else setConn("live");
   }
 
   function connect() {
     clearTimeout(reconnectTimer);
-    const url = state.server.replace(/^http/, "ws").replace(/\/$/, "") + "/ws/stream";
+    const url = base().replace(/^http/, "ws") + "/ws/stream";
     setConn("connecting", state.everConnected ? "Reconnecting" : "Connecting");
     try {
       ws = new WebSocket(url);
-    } catch (err) {
-      fail(`Bad server URL: ${state.server}`);
+    } catch {
+      fail(`${state.server} is not a valid server address`);
       return;
     }
     ws.addEventListener("open", () => {
       state.retry = 0;
       state.everConnected = true;
       state.error = null;
-      setConn("live", "Live");
+      setConn("waiting");
+      syncConn();
       fetchWatchlist();
+      fetchStatus();
       render();
     });
     ws.addEventListener("message", (ev) => {
@@ -105,36 +131,58 @@
       ws = null;
       state.retry += 1;
       const delay = Math.min(30000, 1000 * 2 ** Math.min(state.retry, 5));
-      if (!state.everConnected || !state.snapshot) {
-        fail(`Can't reach ${state.server}`);
-      } else {
-        setConn("offline", "Offline");
+      if (!state.everConnected || !state.snapshot) fail(`Nothing is answering at ${state.server}`);
+      else {
+        setConn("offline");
         render();
       }
       reconnectTimer = setTimeout(connect, delay);
     });
   }
 
+  function retryNow() {
+    state.retry = 0;
+    if (ws) ws.close();
+    else connect();
+  }
+
   function fail(message) {
     state.error = message;
-    setConn("offline", "Offline");
+    setConn("offline");
     render();
+  }
+
+  async function fetchJSON(path) {
+    const resp = await fetch(base() + path);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
   }
 
   async function fetchWatchlist() {
     try {
-      const resp = await fetch(state.server.replace(/\/$/, "") + "/api/watchlist");
-      if (resp.ok) saveLocal({ watchlist: await resp.json() });
+      saveLocal({ watchlist: await fetchJSON("/api/watchlist") });
     } catch {
       /* the bundled default stays in use */
     }
+  }
+
+  async function fetchStatus() {
+    try {
+      state.status = await fetchJSON("/api/status");
+    } catch {
+      return;
+    }
+    renderFooter();
+    renderBrief();
   }
 
   function onMessage(msg) {
     if (msg.type === "snapshot") {
       state.snapshot = msg;
       state.stories = msg.stories || [];
-      saveLocal({ tickerInfo: V.tickerInfo(state.stories) });
+      state.lastSnapshotAt = Date.now();
+      saveLocal({ tickerInfo: V.tickerInfo(state.stories, msg.window_size) });
+      syncConn();
       render();
     } else if (msg.type === "cluster_update" && msg.story) {
       const i = state.stories.findIndex((s) => s.cluster_id === msg.story.cluster_id);
@@ -145,8 +193,9 @@
     } else if (msg.type === "market_brief") {
       state.market = msg;
       renderBrief();
-    } else if (msg.type === "heartbeat" && state.conn !== "live") {
-      setConn("live", "Live");
+      fetchStatus();
+    } else if (msg.type === "heartbeat") {
+      syncConn();
     }
   }
 
@@ -184,14 +233,43 @@
     }
   }
 
+  function llmNote(method) {
+    const llm = state.status && state.status.llm;
+    if (method === "llm") return `written by ${llm || "an LLM"}, checked against the sources`;
+    if (llm && llm.startsWith("disabled")) return `extractive · LLM off (${llm.replace(/^disabled \(|\)$/g, "")})`;
+    return "extractive: sentences quoted from the cited stories";
+  }
+
   function renderBrief() {
     const m = state.market;
     $("marketBrief").hidden = !m;
     if (!m) return;
-    const { body, why } = V.splitWhy(m.text);
-    renderBriefText($("briefBody"), body, m.sources);
-    renderBriefText($("briefWhy"), why, m.sources);
-    $("briefMeta").textContent = `${V.hhmmUTC(m.ts_ms)} · ${m.method === "llm" ? "written by an LLM, checked against the sources" : "extractive: sentences quoted from the cited stories"}`;
+    const { body } = V.splitWhy(m.text);
+    // The extractive market brief quotes the top headlines; when every one of them is already a
+    // card below, repeating them adds nothing, so only the price moves are shown.
+    const headlineIds = new Set(state.stories.map((s) => s.headline.id));
+    const redundant = (m.sources || []).length > 0 && m.sources.every((s) => headlineIds.has(s.id));
+    if (redundant) $("briefBody").replaceChildren();
+    else renderBriefText($("briefBody"), body, m.sources);
+
+    const movers = V.parseMovers(m.facts);
+    const grid = $("movers");
+    grid.replaceChildren();
+    if (movers.length) {
+      grid.append(
+        h("span", { class: "hdr", role: "columnheader", text: "" }),
+        h("span", { class: "hdr val", role: "columnheader", text: "1h" }),
+        h("span", { class: "hdr val", role: "columnheader", text: "6h" })
+      );
+      for (const mv of movers) {
+        grid.append(
+          h("span", { class: "sym", role: "rowheader", text: mv.symbol }),
+          h("span", { class: "val", role: "cell", dataset: { dir: V.direction(mv.h1) }, text: V.formatPct(mv.h1) }),
+          h("span", { class: "val", role: "cell", dataset: { dir: V.direction(mv.h6) }, text: V.formatPct(mv.h6) })
+        );
+      }
+    }
+    $("briefMeta").textContent = `${V.hhmmUTC(m.ts_ms)} · ${llmNote(m.method)}`;
   }
 
   function renderLegend() {
@@ -207,13 +285,19 @@
     }
   }
 
+  function renderFooter() {
+    const parts = [state.server.replace(/^https?:\/\//, "")];
+    const st = state.status;
+    if (st && st.embedder_id) parts.push(st.embedder_id.split("/")[1]);
+    if (st && st.degraded) parts.push("embeddings degraded");
+    $("server").textContent = parts.join(" · ");
+  }
+
   function scoreBar(story) {
     const parts = V.contributions(story.components);
     const raw = parts.reduce((s, p) => s + p.share, 0) || 1;
     const shown = Math.round(story.score * 100);
-    const desc = parts
-      .map((p) => `${p.label} ${p.value === null ? "n/a" : Math.round(p.value * 100)}`)
-      .join(", ");
+    const desc = parts.map((p) => `${p.label} ${p.value === null ? "n/a" : Math.round(p.value * 100)}`).join(", ");
     const bar = h("div", { class: "bar", role: "img", "aria-label": `Score ${shown}. ${desc}` });
     for (const p of parts) {
       if (!p.share) continue;
@@ -230,25 +314,56 @@
 
   function tickerChips(story) {
     const moves = new Map((story.moves || []).map((m) => [m.symbol, m]));
-    return h("div", { class: "tickers" },
-      story.tickers.slice(0, 6).map((sym) => {
-        const m = moves.get(sym);
-        const dir = m ? V.direction(m.pct) : "flat";
-        return h("button", {
-            type: "button", class: "tick", dataset: { dir },
-            title: m ? `${m.text}. Click to filter to ${sym}.` : `No price data for ${sym}. Click to filter.`,
-            onclick: () => { state.tickerFilter = [sym]; render(); },
-          },
-          sym,
-          m ? h("span", { class: "move" },
-                h("span", { class: "arrow", "aria-hidden": "true", text: dir === "up" ? "▲" : dir === "down" ? "▼" : "■" }),
-                " ", V.formatPct(m.pct)) : null);
+    const expanded = state.expandedChips.has(story.cluster_id);
+    const shown = expanded ? story.tickers : story.tickers.slice(0, MAX_CHIPS);
+    const chips = shown.map((sym) => {
+      const m = moves.get(sym);
+      const dir = m ? V.direction(m.pct) : "flat";
+      const spoken = m ? `, ${dir === "up" ? "up" : dir === "down" ? "down" : "flat"} ${V.formatPct(Math.abs(m.pct))}` : "";
+      return h("button", {
+          type: "button", class: "tick", dataset: { dir },
+          "aria-label": `Filter to ${sym}${spoken}`,
+          title: m ? `${m.text}. Click to filter to ${sym}.` : `No price data for ${sym}. Click to filter.`,
+          onclick: () => { state.tickerFilter = [sym]; render(); },
+        },
+        sym,
+        m ? h("span", { class: "move", "aria-hidden": "true" },
+              h("span", { class: "arrow", text: dir === "up" ? "▲" : dir === "down" ? "▼" : "■" }),
+              " ", V.formatPct(m.pct)) : null);
+    });
+    const extra = story.tickers.length - MAX_CHIPS;
+    if (extra > 0) {
+      chips.push(h("button", {
+        type: "button", class: "more-tickers", "aria-expanded": String(expanded),
+        text: expanded ? "fewer" : `+${extra} more`,
+        onclick: () => {
+          if (expanded) state.expandedChips.delete(story.cluster_id);
+          else state.expandedChips.add(story.cluster_id);
+          render();
+        },
       }));
+    }
+    return h("div", { class: "tickers" }, chips);
   }
 
-  function details(story) {
-    const d = h("details", { class: "more" }, h("summary", { text: story.brief ? "Brief and sources" : "Sources and score" }));
-    if (story.brief) {
+  function sourcesList(story, broad) {
+    if (story.brief && !broad) {
+      const cited = new Set(V.briefSegments(story.brief.text, story.brief.sources).filter((s) => s.cite).map((s) => s.cite));
+      return h("ol", { class: "sources" },
+        story.brief.sources.map((it) =>
+          h("li", { value: it.n, class: cited.has(it.n) ? null : "uncited" },
+            link(it.url, it.title), " ", h("span", { class: "src", text: it.source }))));
+    }
+    return h("ol", { class: "sources" },
+      story.items.slice(0, 5).map((it) =>
+        h("li", {}, link(it.url, it.title), " ",
+          h("span", { class: "src", text: `${it.source} · ${V.hhmmUTC(it.published_ms)}` }))));
+  }
+
+  function details(story, broad) {
+    const title = broad ? "Top headlines" : story.brief ? "Brief and sources" : "Sources and score";
+    const d = h("details", { class: "more" }, h("summary", { text: title }));
+    if (story.brief && !broad) {
       const { body, why } = V.splitWhy(story.brief.text);
       const p = h("p", { class: "story-brief" });
       renderBriefText(p, body, story.brief.sources);
@@ -258,40 +373,41 @@
         renderBriefText(w, why, story.brief.sources);
         d.appendChild(w);
       }
+      d.appendChild(h("p", { class: "brief-asof", text: `brief as of ${V.hhmmUTC(story.brief.ts_ms)}; the cluster may have grown since` }));
     }
-    // With a brief, list exactly the items it cites, numbered the same way; otherwise the
-    // three most recent reports.
-    const listed = story.brief
-      ? story.brief.sources.map((s) => ({ ...s, published_ms: null }))
-      : story.items.slice(0, 3).map((it, i) => ({ ...it, n: i + 1 }));
-    d.appendChild(
-      h("ol", { class: "sources" },
-        listed.map((it) =>
-          h("li", { value: it.n }, link(it.url, it.title), " ",
-            h("span", { class: "src", text: it.published_ms ? `${it.source} · ${V.hhmmUTC(it.published_ms)}` : it.source }))))
-    );
+    d.appendChild(sourcesList(story, broad));
     const dl = h("dl", { class: "breakdown", "aria-label": "Score components (0-100)" });
     for (const p of V.contributions(story.components)) {
-      dl.appendChild(h("dt", {}, h("span", { class: "swatch", style: { background: `var(--c-${p.key})` } }), p.label));
+      dl.appendChild(h("dt", {}, h("span", { class: "swatch", style: { background: `var(--c-${p.key})` }, "aria-hidden": "true" }), p.label));
       dl.appendChild(h("dd", { class: p.value === null ? "note" : null, text: p.value === null ? "no price data" : String(Math.round(p.value * 100)) }));
     }
     d.appendChild(dl);
     return d;
   }
 
-  function card(story, nowMs) {
+  function card(story, snap) {
     const fresh = !seenClusters.has(story.cluster_id);
     seenClusters.add(story.cluster_id);
-    const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-    return h("li", { class: fresh ? "card new" : "card", dataset: { rank: story.rank, id: story.cluster_id } },
-      h("div", { class: "rank", "aria-label": `rank ${story.rank}`, text: String(story.rank) }),
+    const broad = V.isBroad(story, snap.window_size);
+    const cls = ["card", fresh ? "new" : "", broad ? "broad" : ""].filter(Boolean).join(" ");
+    const meta = `${plural(story.size, "report")} · ${plural(story.sources.length, "source")} · last ${V.timeAgo(story.last_ms, snap.ts_ms)}`;
+    const heading = broad
+      ? h("h3", { class: "headline" }, h("span", { class: "sr-only", text: `Rank ${story.rank}: ` }),
+          `${story.size} of ${snap.window_size} articles, ${story.sources.length} sources`)
+      : h("h3", { class: "headline" }, h("span", { class: "sr-only", text: `Rank ${story.rank}: ` }),
+          link(story.headline.url, story.headline.title));
+    return h("li", { class: cls, dataset: { rank: story.rank, id: story.cluster_id } },
+      h("div", { class: "rank", "aria-hidden": "true", text: String(story.rank) }),
       h("div", { class: "card-body" },
-        h("p", { class: "label", text: story.label || "untitled cluster" }),
-        h("h3", { class: "headline" }, link(story.headline.url, story.headline.title)),
-        h("p", { class: "meta", text: `${plural(story.size, "report")} · ${plural(story.sources.length, "source")} · last ${V.timeAgo(story.last_ms, nowMs)}` }),
+        h("p", { class: "label", text: broad ? "Broad · mixed coverage" : story.label || "untitled cluster" }),
+        heading,
+        broad
+          ? h("ul", { class: "digest" }, story.items.slice(0, 3).map((it) => h("li", {}, link(it.url, it.title))))
+          : h("p", { class: "meta", text: meta }),
+        broad ? h("p", { class: "meta", text: `last ${V.timeAgo(story.last_ms, snap.ts_ms)}` }) : null,
         scoreBar(story),
         story.tickers.length ? tickerChips(story) : null,
-        details(story)));
+        details(story, broad)));
   }
 
   function renderState(kind, title, lines, action) {
@@ -300,40 +416,71 @@
     $("state").replaceChildren(box);
   }
 
+  function secondsAgo(ts) {
+    const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    return s < 90 ? `${s}s ago` : `${Math.round(s / 60)} min ago`;
+  }
+
+  function renderBanner(snap) {
+    const banner = $("banner");
+    banner.replaceChildren();
+    banner.removeAttribute("role");
+    if (state.conn === "offline" && snap) {
+      banner.setAttribute("role", "alert");
+      banner.appendChild(h("p", { class: "banner" },
+        `Disconnected. Showing the last ranking, received ${secondsAgo(state.lastSnapshotAt)}.`,
+        h("button", { type: "button", class: "btn", text: "Retry now", onclick: retryNow })));
+    } else if (snap && snap.stale) {
+      banner.setAttribute("role", "status");
+      banner.appendChild(h("p", { class: "banner",
+        text: `Embeddings are unavailable, so this is the ranking from ${V.hhmmUTC(snap.as_of_ms)}. It updates again once they recover.` }));
+    }
+  }
+
   function render() {
     renderLegend();
-    $("legend").hidden = !state.snapshot;
+    renderFooter();
     const main = $("main");
     const list = $("stories");
     const snap = state.snapshot;
-    $("server").textContent = state.server.replace(/^https?:\/\//, "");
+    const hasStories = Boolean(snap && state.stories.length);
+    $("legend").hidden = !hasStories;
+    $("onpage").hidden = !hasStories;
 
     const filter = $("activeFilter");
     filter.replaceChildren();
+    filter.hidden = !state.tickerFilter.length;
     if (state.tickerFilter.length) {
-      filter.appendChild(h("button", { type: "button", class: "chip-filter", title: "Clear ticker filter",
-        text: state.tickerFilter.join(","), onclick: () => { state.tickerFilter = []; render(); } }));
+      filter.append(
+        h("span", { class: "hint", text: "Filtered to" }),
+        h("button", { type: "button", class: "chip-filter", title: "Clear ticker filter",
+          "aria-label": `Clear filter ${state.tickerFilter.join(", ")}`,
+          text: state.tickerFilter.join(","), onclick: () => { state.tickerFilter = []; render(); } })
+      );
     }
 
-    $("banner").replaceChildren();
-    if (snap && snap.stale) {
-      $("banner").appendChild(h("p", { class: "banner",
-        text: `Embeddings are unavailable; showing the ranking from ${V.hhmmUTC(snap.as_of_ms)}.` }));
-    } else if (state.conn === "offline" && snap) {
-      $("banner").appendChild(h("p", { class: "banner", text: "Disconnected. Showing the last ranking received; retrying." }));
-    }
+    renderBanner(snap);
+    const dim = Boolean(snap && (snap.stale || state.conn === "offline"));
+    list.classList.toggle("is-stale", dim);
+    $("marketBrief").classList.toggle("is-stale", dim);
 
     if (snap) {
-      $("asof").replaceChildren("as of ", h("strong", { text: V.hhmmUTC(snap.ts_ms) }), ` · ${snap.window_size} in window`);
+      const asOf = snap.stale ? snap.as_of_ms : snap.ts_ms;
+      $("asof").title = `Ranking as of ${V.hhmmUTC(asOf)}; ${snap.window_size} articles in the 6-hour window`;
+      $("asof").replaceChildren(h("strong", { text: V.hhmmUTC(asOf) }),
+        ` · ${plural(snap.window_size, "article")}, 6h`);
     }
 
+    const foot = $("footnote");
+    foot.hidden = true;
     if (state.error && !snap) {
       main.setAttribute("aria-busy", "false");
       list.replaceChildren();
-      renderState("error", "Can't reach the Summerand server", [
-        [state.error + "."],
-        ["Start it with ", h("code", { text: "summerand demo" }), " or change the address in Settings."],
-      ], h("button", { type: "button", class: "btn", text: "Retry now", onclick: () => { state.retry = 0; connect(); } }));
+      renderState("error", "Server not reachable", [
+        [`${state.error}.`],
+        ["Start it with ", h("code", { text: "make demo-fast" }), " (or ", h("code", { text: "summerand demo" }),
+         "), or change the address in Settings."],
+      ], h("button", { type: "button", class: "btn", text: "Retry now", onclick: retryNow }));
       return;
     }
     if (!snap) {
@@ -347,10 +494,14 @@
       tickers: state.tickerFilter,
       pageTickers: state.onPage ? state.pageTickers || [] : null,
     });
-    const nowMs = snap.ts_ms;
-    list.replaceChildren(...visible.map((s) => card(s, nowMs)));
+    list.replaceChildren(...visible.map((s) => card(s, snap)));
+    if (hasStories && state.stories.length <= 3 && !state.tickerFilter.length && !state.onPage) {
+      foot.hidden = false;
+      foot.textContent = `${plural(snap.k || state.stories.length, "topic")} across ${snap.window_size} articles in the last 6h. ` +
+        "Coverage is mixed, so stories are grouped broadly.";
+    }
     if (!state.stories.length) {
-      renderState("empty", "No stories yet", [["The pipeline publishes a ranking every 30 seconds of event time once enough articles have clustered."]]);
+      renderState("empty", "No stories yet", [["Clustering the first articles. A ranking appears every 30 seconds."]]);
     } else if (!visible.length) {
       const why = state.onPage
         ? (state.pageTickers && state.pageTickers.length
@@ -371,6 +522,10 @@
     if (state.onPage) refreshPageTickers();
     else render();
   });
+  $("settings").addEventListener("click", () => {
+    if (hasChrome && chrome.runtime && chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage();
+    else window.open("options.html", "_blank");
+  });
   if (hasChrome && chrome.tabs) {
     chrome.tabs.onActivated.addListener(refreshPageTickers);
     chrome.tabs.onUpdated.addListener((_id, info) => { if (info.status === "complete") refreshPageTickers(); });
@@ -381,13 +536,15 @@
         state.server = changes.serverUrl.newValue || DEFAULT_SERVER;
         state.snapshot = null;
         state.market = null;
-        if (ws) ws.close();
-        else connect();
+        state.status = null;
+        state.everConnected = false;
+        retryNow();
       }
     });
   }
   setInterval(() => {
-    if (state.conn === "live" && Date.now() - state.lastMessageAt > 40000) setConn("connecting", "Quiet");
+    if (state.conn === "live" && Date.now() - state.lastMessageAt > 40000) setConn("live", "Connected · quiet");
+    if (state.conn === "offline" && state.snapshot) renderBanner(state.snapshot);
   }, 5000);
 
   render();

@@ -39,9 +39,9 @@
       "ndcg@10": 0.9026
     }
   },
-  "git_commit": "c6bb268",
+  "git_commit": "1fb107c",
   "run_manifest": {
-    "recorded_at": "2026-08-31T00:44:00-0400",
+    "recorded_at": "2026-08-31T15:46:03-0400",
     "host": {
       "chip": "Apple M1 Pro",
       "ram_gb": 16.0,
@@ -51,17 +51,17 @@
     },
     "exclusive_compute": {
       "held": true,
-      "holder": "localhost-ai-bench"
+      "holder": "leasing-e2e-docker"
     },
     "load": {
       "loadavg": [
-        "16.40",
-        "9.45",
-        "6.80"
+        "44.44",
+        "23.60",
+        "12.15"
       ],
-      "cpu_usage": "CPU usage: 50.86% user, 33.64% sys, 15.48% idle",
-      "docker_containers_running": 8,
-      "swap": "total = 12288.00M  used = 11126.19M  free = 1161.81M  (encrypted)"
+      "cpu_usage": "CPU usage: 47.50% user, 35.58% sys, 16.91% idle",
+      "docker_containers_running": 5,
+      "swap": "total = 12288.00M  used = 10935.56M  free = 1352.44M  (encrypted)"
     },
     "extra": {
       "script": "ranking_eval",

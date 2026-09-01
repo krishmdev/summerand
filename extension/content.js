@@ -14,7 +14,16 @@
     const i = info[sym];
     if (!i) return `${sym}: not in the current ranking`;
     const move = i.pct === null || i.pct === undefined ? "" : ` · ${i.pct > 0 ? "+" : ""}${i.pct.toFixed(1)}% since first report`;
+    if (i.broad) return `${sym} · in broad mixed coverage (#${i.rank})${move}`;
     return `${sym} · story #${i.rank}: ${i.label}${move}`;
+  }
+
+  function decorate(mark) {
+    const i = info[mark.dataset.symbol];
+    mark.dataset.ranked = i ? "yes" : "no";
+    if (i && i.pct) mark.dataset.dir = i.pct > 0 ? "up" : "down";
+    else delete mark.dataset.dir;
+    mark.title = tooltip(mark.dataset.symbol);
   }
 
   function skipNode(node) {
@@ -37,10 +46,8 @@
       const mark = document.createElement("mark");
       mark.className = "smr-ticker";
       mark.dataset.symbol = m.symbol;
-      const pct = info[m.symbol] ? info[m.symbol].pct : null;
-      if (pct) mark.dataset.dir = pct > 0 ? "up" : "down";
-      mark.title = tooltip(m.symbol);
       mark.textContent = text.slice(m.start, m.end);
+      decorate(mark);
       frag.appendChild(mark);
       last = m.end;
     }
@@ -57,11 +64,7 @@
   }
 
   function refreshTooltips() {
-    for (const mark of document.querySelectorAll("mark.smr-ticker")) {
-      mark.title = tooltip(mark.dataset.symbol);
-      const i = info[mark.dataset.symbol];
-      if (i && i.pct) mark.dataset.dir = i.pct > 0 ? "up" : "down";
-    }
+    for (const mark of document.querySelectorAll("mark.smr-ticker")) decorate(mark);
   }
 
   // Collect added nodes from every callback and scan them together after a short pause, so a

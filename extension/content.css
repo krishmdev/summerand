@@ -1,10 +1,19 @@
+/* Ranked tickers get a tint and a solid underline; tickers that are not in the current ranking
+   get only a faint dotted underline. Direction is an underline color plus the tooltip text, and
+   red means down only. */
 mark.smr-ticker {
-  background: rgba(57, 135, 229, 0.16);
+  background: none;
   color: inherit;
-  border-bottom: 1px solid rgba(57, 135, 229, 0.7);
-  border-radius: 2px;
+  border-bottom: 1px dotted rgba(143, 142, 134, 0.8);
   padding: 0 1px;
   cursor: help;
 }
-mark.smr-ticker[data-dir="up"] { border-bottom-color: rgba(57, 135, 229, 0.9); }
-mark.smr-ticker[data-dir="down"] { border-bottom-color: rgba(230, 103, 103, 0.9); background: rgba(230, 103, 103, 0.14); }
+mark.smr-ticker[data-ranked="yes"] {
+  background: rgba(57, 135, 229, 0.14);
+  border-bottom: 2px solid rgba(57, 135, 229, 0.75);
+  border-radius: 2px;
+}
+mark.smr-ticker[data-ranked="yes"][data-dir="down"] {
+  background: rgba(230, 103, 103, 0.12);
+  border-bottom-color: rgba(230, 103, 103, 0.9);
+}

@@ -1,9 +1,9 @@
 #!/bin/sh
-# Run a command (and every child process) with outbound network denied except localhost/unix sockets.
-# Also unsets provider keys and forces Hugging Face offline mode.
-# Usage: offline-run <cmd> [args...]
+# Run a command (and every child process) with outbound network denied except localhost and unix
+# sockets, using the macOS sandbox-exec profile next to this script. Also unsets the provider keys
+# Summerand reads and forces Hugging Face offline mode.
+# Usage: scripts/offline-run <cmd> [args...]
 here="$(cd "$(dirname "$0")" && pwd)"
-exec env -u OPENAI_API_KEY -u GEMINI_API_KEY -u GOOGLE_API_KEY -u ANTHROPIC_API_KEY -u MEM0_API_KEY \
-  -u LIVEKIT_API_KEY -u LIVEKIT_API_SECRET -u POLYGON_API_KEY -u CRYPTOPANIC_TOKEN \
+exec env -u OPENAI_API_KEY -u POLYGON_API_KEY -u CRYPTOPANIC_TOKEN \
   HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
   sandbox-exec -f "$here/offline.sb" "$@"

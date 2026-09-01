@@ -50,18 +50,14 @@
       "power": "Now drawing from 'AC Power'"
     },
     "exclusive_compute": {
-      "held": true,
-      "holder": "leasing-e2e-docker"
+      "held": true
     },
     "load": {
       "loadavg": [
         "44.44",
         "23.60",
         "12.15"
-      ],
-      "cpu_usage": "CPU usage: 47.50% user, 35.58% sys, 16.91% idle",
-      "docker_containers_running": 5,
-      "swap": "total = 12288.00M  used = 10935.56M  free = 1352.44M  (encrypted)"
+      ]
     },
     "extra": {
       "script": "ranking_eval",

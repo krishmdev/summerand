@@ -17,6 +17,7 @@
 
   function invalid(message) {
     url.setAttribute("aria-invalid", "true");
+    testResult.textContent = "";
     saved.textContent = message;
   }
 

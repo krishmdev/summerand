@@ -157,6 +157,14 @@ def main() -> int:
 
             demo.send_signal(signal.SIGINT)
             demo.wait(timeout=20)
+            page.wait_for_selector("#conn[data-state='offline']", timeout=30_000)
+            results["disconnected_banner"] = page.locator(
+                "#banner [role], #banner p"
+            ).first.text_content()
+            if args.shots:
+                page.screenshot(
+                    path=str(args.shots / "state-disconnected.png"), animations="disabled"
+                )
             empty = ctx.new_page()
             empty.goto(f"chrome-extension://{ext_id}/sidepanel.html")
             empty.wait_for_selector(".state.error", timeout=30_000)

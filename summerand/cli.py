@@ -267,7 +267,7 @@ async def _live(settings: Settings, host: str, port: int) -> None:
             status=stack.status,
             extension_ids=settings.summerand_extension_ids,
         )
-        _, serving = await _serve(api, host, port)
+        server, serving = await _serve(api, host, port)
         print(
             f"summerand live: http://{host}:{port}"
             f"  (embedder {stack.pipeline.index.gen.embedder_id})"
@@ -275,11 +275,20 @@ async def _live(settings: Settings, host: str, port: int) -> None:
         # Every background task is supposed to run forever. If one dies (or the server stops),
         # log it and exit nonzero instead of serving a pipeline that silently stopped.
         done, _ = await asyncio.wait([serving, *tasks], return_when=asyncio.FIRST_COMPLETED)
+        failed = [t for t in done if t is not serving]
+        for t in failed:
+            if t.cancelled():
+                log.error("live task was cancelled")
+            elif t.exception() is not None:
+                log.error("live task failed: %r", t.exception())
+            else:
+                log.error("live task returned; it should run until shutdown")
+        if failed:
+            server.should_exit = True
+            with contextlib.suppress(asyncio.CancelledError):
+                await serving
     for t in tasks:
         t.cancel()
-    failed = [t for t in done if t is not serving and (t.cancelled() or t.exception())]
-    for t in failed:
-        log.error("live task stopped: %r", None if t.cancelled() else t.exception())
     if failed:
         raise typer.Exit(1)
 

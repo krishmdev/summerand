@@ -60,6 +60,20 @@ test("tickerInfo keeps the best-ranked story per symbol", () => {
     { rank: 1, label: "a", tickers: ["BTC"], moves: [{ symbol: "BTC", pct: -1.2 }] },
     { rank: 2, label: "b", tickers: ["BTC", "ETH"], moves: [] },
   ]);
-  assert.deepEqual(info.BTC, { rank: 1, label: "a", pct: -1.2 });
-  assert.deepEqual(info.ETH, { rank: 2, label: "b", pct: null });
+  assert.deepEqual(info.BTC, { rank: 1, label: "a", pct: -1.2, broad: false });
+  assert.deepEqual(info.ETH, { rank: 2, label: "b", pct: null, broad: false });
+});
+
+test("broad clusters: server flag wins, otherwise share of window and source count", () => {
+  assert.equal(V.isBroad({ broad: true, size: 1, sources: [] }, 100), true);
+  assert.equal(V.isBroad({ size: 33, sources: ["a", "b", "c", "d", "e", "f"] }, 42), true);
+  assert.equal(V.isBroad({ size: 33, sources: ["a", "b"] }, 42), false);
+  assert.equal(V.isBroad({ size: 5, sources: ["a", "b", "c", "d", "e", "f"] }, 42), false);
+});
+
+test("movers parse the market-brief facts", () => {
+  assert.deepEqual(V.parseMovers(["BTC +0.3% over 1h and −0.9% over 6h", "ETH -0.1% over 1h", "junk"]), [
+    { symbol: "BTC", h1: 0.3, h6: -0.9 },
+    { symbol: "ETH", h1: -0.1, h6: null },
+  ]);
 });

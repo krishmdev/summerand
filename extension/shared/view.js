@@ -92,16 +92,36 @@
   }
 
   // What the content script needs for tooltips: best-ranked story and move per symbol.
-  function tickerInfo(stories) {
+  function tickerInfo(stories, windowSize) {
     const info = {};
     for (const s of stories) {
       for (const t of s.tickers) {
         if (info[t]) continue;
         const move = (s.moves || []).find((m) => m.symbol === t);
-        info[t] = { rank: s.rank, label: s.label, pct: move ? move.pct : null };
+        info[t] = { rank: s.rank, label: s.label, pct: move ? move.pct : null, broad: isBroad(s, windowSize) };
       }
     }
     return info;
+  }
+
+  // The server flags clusters that hold most of the window from many outlets; older servers
+  // don't send the flag, so apply the same rule here.
+  function isBroad(story, windowSize) {
+    if (typeof story.broad === "boolean") return story.broad;
+    return windowSize > 0 && story.size / windowSize > 0.5 && (story.sources || []).length >= 6;
+  }
+
+  // "BTC +0.3% over 1h and +0.9% over 6h" -> {symbol, h1, h6}
+  function parseMovers(facts) {
+    const out = [];
+    const re = /^([A-Z.]{1,6}) ([+\-−]?\d+(?:\.\d+)?)% over 1h(?: and ([+\-−]?\d+(?:\.\d+)?)% over 6h)?$/;
+    for (const f of facts || []) {
+      const m = re.exec(f.trim());
+      if (!m) continue;
+      const num = (x) => (x === undefined ? null : Number(x.replace("−", "-")));
+      out.push({ symbol: m[1], h1: num(m[2]), h6: num(m[3]) });
+    }
+    return out;
   }
 
   root.SummerandView = {
@@ -116,5 +136,7 @@
     splitWhy,
     filterStories,
     tickerInfo,
+    isBroad,
+    parseMovers,
   };
 })(globalThis);

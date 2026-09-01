@@ -21,7 +21,8 @@ The API serves at `http://127.0.0.1:8000`. To view the side panel, open `chrome:
 
 `make demo` replays at 300x instead (24 hours of news in about five minutes), so you can watch
 clusters form and rankings change in the panel. Speed only changes how long the replay sleeps
-between events; the pipeline's results are the same at any speed. Without `make setup`'s model
+between events; the pipeline's results are the same at any speed. `--until 2026-08-28T19:30:00Z`
+stops the replay at a chosen moment (the screenshot above is from then). Without `make setup`'s model
 download the demo falls back to hashed bag-of-words vectors, which cluster less well but need
 nothing.
 
@@ -96,8 +97,29 @@ rescaled. Scores are smoothed with an EMA (α = 0.5) per cluster ID.
 **Briefs.** With an OpenAI key, the model gets the numbered articles plus computed price facts
 ("SOL −4.2% since 13:03 UTC, 12.9σ") and must cite `[n]` after every sentence. A validator
 rejects any draft with an uncited sentence, a citation that doesn't exist, or a number that
-doesn't appear in the input. Rejected drafts, and every brief when there is no key, fall back to
-an extractive brief: maximal-marginal-relevance picks of the articles' own sentences, each cited.
+doesn't appear in the input (clock times count as one token, citation markers don't license
+numbers, and a signed percentage must keep its sign). Rejected drafts, and every brief when there
+is no key, fall back to an extractive brief: maximal-marginal-relevance picks of the articles' own
+sentences, each cited. The validator doesn't catch numbers written as words ("three") or a
+direction word that contradicts an unsigned percentage ("rose 2.1%" when it fell).
+
+Templated posts (earnings previews, price-prediction articles) are dropped by the ETL using the
+`title_noise` patterns in `config/sources.yaml`. One outlet publishes dozens of them a day, and
+they would otherwise dominate the velocity component.
+
+## Live mode
+
+`summerand live` runs everything in one process with no Kafka: RSS polling, the Coinbase ticker
+WebSocket, the ETL, the pipeline and the API on `127.0.0.1:8000`. It needs network access but no
+keys. Where each source stands today (details in [docs/verification.md](docs/verification.md)):
+
+| source | status |
+|---|---|
+| RSS feeds in `config/sources.yaml` | 15 enabled; Reuters' crypto feed is disabled (401) |
+| Coinbase ticker WebSocket and REST candles | work without a key |
+| Polygon | REST minute bars work on the free plan (used for the fixture); the stocks WebSocket needs a paid plan, so `summerand ingest polygon` exits with a clear message otherwise |
+| CryptoPanic | optional; its v2 developer endpoint currently answers 404, so the poller logs that once and exits |
+| OpenAI | optional; without a key (or once it hits a quota error) embeddings fall back to MiniLM and briefs to extractive, and `/api/status` reports `llm: disabled (quota)` |
 
 ## Compose mode
 
@@ -108,7 +130,9 @@ make compose-demo          # the fixture replayed through Kafka instead of live 
 make compose-offline       # the same replay on an internal-only network, checked from inside
 ```
 
-Redpanda listens on `redpanda:9092` for containers and `localhost:19092` for the host. Postgres
+The API binds to 127.0.0.1 unless given `--host` (compose passes 0.0.0.0 inside the network).
+Set `SUMMERAND_EXTENSION_IDS` to pin which extension ids may connect; by default any unpacked
+extension id and localhost pages are allowed. Redpanda listens on `redpanda:9092` for containers and `localhost:19092` for the host. Postgres
 is published on `127.0.0.1:5433` (`SUMMERAND_PG_PORT`), and the API on `SUMMERAND_API_PORT`
 (default 8000). Keys go in `.env` (see `.env.example`); all of them are optional. To use MiniLM
 inside the containers, build with `SUMMERAND_EXTRAS="--extra pg --extra local"` (this adds
@@ -142,7 +166,8 @@ panel page, because an MV3 service worker gets suspended. The content script wal
 and wraps tickers in `<mark>` elements with DOM calls only. Article titles come from RSS feeds,
 so nothing is ever inserted as HTML, and a test fails the build if `innerHTML` or similar shows
 up. "On this page" filters the panel to stories whose tickers appear in the current tab. The
-server address is set on the options page. `scripts/smoke_extension.py` loads the unpacked
+server address is set on the options page; a non-local address prompts for that host's
+permission (declared as optional in the manifest). `scripts/smoke_extension.py` loads the unpacked
 extension in Chromium with Playwright and checks the panel, highlighting and the offline state.
 
 ## Fixture
@@ -158,7 +183,7 @@ by the tests.
 
 `make eval` replays the same fixture and compares the pipeline's impact order with recency, cluster size, and 200 seeded random shuffles. A story is labeled positive when a ticker's absolute 60-minute log return exceeds twice its trailing 120-minute realized one-minute volatility scaled by `sqrt(60)`. Only stories with sufficient price history and a future price enter the evaluation. The result is in [`results/ranking_eval.json`](results/ranking_eval.json); the script and fixture hashes in that file identify the evaluated inputs.
 
-This fixture **does not establish a ranking improvement**. Only 7 of 133 snapshots with priced candidates have a positive story, and those 7 contain 1, 1, 1, 1, 4, 2, and 1 candidates. Precision at five therefore cannot vary with order in any evaluated snapshot. NDCG at ten can vary in only two. The positive snapshots are also drawn from one replay and are not independent market events. The scores are descriptive diagnostics, not evidence that impact ranking predicts price moves or beats the baselines. A useful next evaluation needs more independent positive events and multiple candidates per snapshot, with the labeling rule and comparison fixed before inspecting results.
+This fixture **does not establish a ranking improvement**. Only 7 of 133 snapshots with priced candidates have a positive story, and those 7 contain 1, 1, 1, 1, 5, 3, and 1 candidates. Precision at five therefore cannot vary with order in any evaluated snapshot. NDCG at ten can vary in only two. The positive snapshots are also drawn from one replay and are not independent market events. The scores are descriptive diagnostics, not evidence that impact ranking predicts price moves or beats the baselines. A useful next evaluation needs more independent positive events and multiple candidates per snapshot, with the labeling rule and comparison fixed before inspecting results.
 
 ## Limitations
 

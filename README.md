@@ -1,12 +1,10 @@
 # Summerand
 
-Summerand groups market news, ranks clusters with an impact heuristic, and sends cited briefs to a Chrome side panel.
-
-It groups financial and crypto news, scores each group using hand-set weights, and writes short
-briefs with citations. FastAPI sends rankings over a WebSocket to the panel, which also marks
-tickers on the page you're reading. The demo replays recorded stories and prices. The panel can
-show a connected server while the market data is historical. In live mode, Summerand polls news
-feeds and market data, with the limits described below.
+Summerand groups financial and crypto news, scores each cluster with hand-set weights, and sends
+cited briefs to a Chrome side panel. FastAPI streams rankings over a WebSocket, and the panel marks
+tickers on the page you're reading. The demo replays recorded stories and prices, so a connected
+panel does not mean the market data is live. Live mode polls news feeds and market data, with the
+limits described below.
 
 <img src="docs/sidepanel.png" width="380" alt="Side panel showing the market brief and ranked story cards with score bars">
 

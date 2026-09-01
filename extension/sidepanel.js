@@ -23,6 +23,7 @@
     pageTickers: null,
     onPage: false,
     retry: 0,
+    switching: false,
     expandedChips: new Set(),
   };
   let ws = null;
@@ -129,6 +130,12 @@
     });
     ws.addEventListener("close", () => {
       ws = null;
+      if (state.switching) {
+        // The user picked a new server: this close is expected, so go straight to it.
+        state.switching = false;
+        connect();
+        return;
+      }
       state.retry += 1;
       const delay = Math.min(30000, 1000 * 2 ** Math.min(state.retry, 5));
       if (!state.everConnected || !state.snapshot) fail(`Nothing is answering at ${state.server}`);
@@ -256,17 +263,15 @@
     const grid = $("movers");
     grid.replaceChildren();
     if (movers.length) {
-      grid.append(
-        h("span", { class: "hdr", role: "columnheader", text: "" }),
+      grid.append(h("div", { class: "row", role: "row" },
+        h("span", { class: "hdr", role: "columnheader" }, h("span", { class: "sr-only", text: "Symbol" })),
         h("span", { class: "hdr val", role: "columnheader", text: "1h" }),
-        h("span", { class: "hdr val", role: "columnheader", text: "6h" })
-      );
+        h("span", { class: "hdr val", role: "columnheader", text: "6h" })));
       for (const mv of movers) {
-        grid.append(
+        grid.append(h("div", { class: "row", role: "row" },
           h("span", { class: "sym", role: "rowheader", text: mv.symbol }),
           h("span", { class: "val", role: "cell", dataset: { dir: V.direction(mv.h1) }, text: V.formatPct(mv.h1) }),
-          h("span", { class: "val", role: "cell", dataset: { dir: V.direction(mv.h6) }, text: V.formatPct(mv.h6) })
-        );
+          h("span", { class: "val", role: "cell", dataset: { dir: V.direction(mv.h6) }, text: V.formatPct(mv.h6) })));
       }
     }
     $("briefMeta").textContent = `${V.hhmmUTC(m.ts_ms)} · ${llmNote(m.method)}`;
@@ -423,18 +428,31 @@
 
   function renderBanner(snap) {
     const banner = $("banner");
+    const kind = state.conn === "offline" && snap ? "offline" : snap && snap.stale ? "stale" : "";
+    if (kind === "offline" && banner.dataset.kind === "offline") {
+      updateBannerAge();
+      return; // keep the alert node as-is so screen readers announce it once
+    }
+    banner.dataset.kind = kind;
     banner.replaceChildren();
     banner.removeAttribute("role");
-    if (state.conn === "offline" && snap) {
+    if (kind === "offline") {
       banner.setAttribute("role", "alert");
       banner.appendChild(h("p", { class: "banner" },
-        `Disconnected. Showing the last ranking, received ${secondsAgo(state.lastSnapshotAt)}.`,
+        "Disconnected. Showing the last ranking.",
+        h("span", { class: "banner-age", "aria-hidden": "true" }),
         h("button", { type: "button", class: "btn", text: "Retry now", onclick: retryNow })));
-    } else if (snap && snap.stale) {
+      updateBannerAge();
+    } else if (kind === "stale") {
       banner.setAttribute("role", "status");
       banner.appendChild(h("p", { class: "banner",
         text: `Embeddings are unavailable, so this is the ranking from ${V.hhmmUTC(snap.as_of_ms)}. It updates again once they recover.` }));
     }
+  }
+
+  function updateBannerAge() {
+    const age = document.querySelector("#banner .banner-age");
+    if (age) age.textContent = ` Received ${secondsAgo(state.lastSnapshotAt)}.`;
   }
 
   function render() {
@@ -478,7 +496,7 @@
       list.replaceChildren();
       renderState("error", "Server not reachable", [
         [`${state.error}.`],
-        ["Start it with ", h("code", { text: "make demo-fast" }), " (or ", h("code", { text: "summerand demo" }),
+        ["Start it with ", h("code", { text: "make demo-hashing" }), " (or ", h("code", { text: "summerand demo" }),
          "), or change the address in Settings."],
       ], h("button", { type: "button", class: "btn", text: "Retry now", onclick: retryNow }));
       return;
@@ -497,7 +515,7 @@
     list.replaceChildren(...visible.map((s) => card(s, snap)));
     if (hasStories && state.stories.length <= 3 && !state.tickerFilter.length && !state.onPage) {
       foot.hidden = false;
-      foot.textContent = `${plural(snap.k || state.stories.length, "topic")} across ${snap.window_size} articles in the last 6h. ` +
+      foot.textContent = `${plural(state.stories.length, "topic")} across ${snap.window_size} articles in the last 6h. ` +
         "Coverage is mixed, so stories are grouped broadly.";
     }
     if (!state.stories.length) {
@@ -538,13 +556,20 @@
         state.market = null;
         state.status = null;
         state.everConnected = false;
-        retryNow();
+        state.error = null;
+        state.retry = 0;
+        clearTimeout(reconnectTimer);
+        render();
+        if (ws) {
+          state.switching = true;
+          ws.close();
+        } else connect();
       }
     });
   }
   setInterval(() => {
     if (state.conn === "live" && Date.now() - state.lastMessageAt > 40000) setConn("live", "Connected · quiet");
-    if (state.conn === "offline" && state.snapshot) renderBanner(state.snapshot);
+    if (state.conn === "offline" && state.snapshot) updateBannerAge();
   }, 5000);
 
   render();

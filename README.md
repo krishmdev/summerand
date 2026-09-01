@@ -224,6 +224,8 @@ model; the hashing quickstart uses a different embedding configuration.
 This fixture **does not establish a ranking improvement**. Only 7 of 133 snapshots with priced
 candidates have a positive story. Those 7 have 1, 1, 1, 1, 5, 3, and 1 candidates. Precision at
 five cannot vary with order in any evaluated snapshot, and NDCG at ten can vary in only two.
+On this run, precision at five is 0.7905 for every ranker, and impact has the lowest NDCG at
+ten (0.841, against 0.847 for size, 0.866 for recency and 0.903 for random).
 These positive snapshots come from one replay, so they are not independent market events. The
 scores describe this run; they do not show that impact ranking predicts price moves or beats the
 baselines. A useful next evaluation needs more independent positive events and multiple

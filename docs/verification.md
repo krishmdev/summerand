@@ -22,7 +22,7 @@ the egress canary (`summerand egress-check`) and the startup check enabled by
 | 2026-08-31 | `scripts/offline-run make test` after the design and deep-review fixes | 121 pytest passed; 53 extension tests passed (`node --test`); `make lint` clean |
 | 2026-08-31 | `scripts/smoke_extension.py --embedder local --until 2026-08-28T19:30:00Z` under the wrapper | panel shows the 33-of-42-article cluster as a "broad, mixed coverage" digest card with the footnote; after the server stops, the Offline pill, the dimmed ranking and the Retry banner appear |
 | 2026-08-31 | fresh clone, `make setup-demo`, then `scripts/offline-run make demo-hashing` | core dependencies only; canary blocked; 170 articles and 10,376 bars replayed in 96s with 0 late events; `/api/stories` served the final ranking |
-| 2026-08-31 | `make eval` (MiniLM) at commit 1fb107c | same numbers as the earlier runs: 7 of 133 snapshots evaluable, P@5 0.7905 for every ranker, impact NDCG@10 0.841; earlier result files named commits that no longer exist after the history rewrite, and this run replaces them |
+| 2026-08-31 | `make eval` (MiniLM) at commit 1fb107c | same numbers as the earlier runs: 7 of 133 snapshots evaluable, P@5 0.7905 for every ranker, impact NDCG@10 0.841 |
 
 The test `tests/test_replay_e2e.py` checks that unpaced and 300x replays of the tiny fixture
 produce identical cluster membership, ranking snapshots (including every score component), and
